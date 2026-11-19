@@ -1,0 +1,27 @@
+---
+description: 2026 adaptive layout standards for Compose screens, panes, navigation, and insets.
+alwaysApply: true
+---
+
+# Layout, 2026
+
+Lay out for the window, not the device. Read size with `currentWindowAdaptiveInfo(supportLargeAndXLargeWidth = true)` from `androidx.compose.material3.adaptive`, and pass that size class down as state. Do not branch on phone, tablet, or orientation.
+
+Width: compact under 600dp, medium under 840dp, expanded under 1200dp, large under 1600dp, extra-large from 1600dp. Check height too. A landscape phone is often medium width and compact height, and two panes do not fit there.
+
+## What to build
+
+Play requires Tier 3 in April 2027: fill the window, no letterboxing, and keep scroll, text, and playback across rotation, fold, and resize. Build to Tier 2. This app is list-detail (places, conditions, hourly) plus a supporting pane (radar or extra detail beside the main reading). Use `ListDetailPaneScaffold` and `SupportingPaneScaffold`. Do not hand-roll pane visibility.
+
+When there is more than one destination, use `NavigationSuiteScaffold`. The default is a bar when width or height is compact, or in tabletop posture, and a rail otherwise. Do not pin a bottom bar on a wide window.
+
+## Do not
+
+- Set `screenOrientation`, `setRequestedOrientation`, `resizeableActivity="false"`, `minAspectRatio`, or `maxAspectRatio`. Target 37 ignores those when the smaller side is at least 600dp.
+- Use a fixed screen width, a stretched single column, or an `isTablet` check.
+- Wrap the whole window in `safeDrawingPadding()`. Call `enableEdgeToEdge()`. Set `windowSoftInputMode="adjustResize"`. Pad interactive content with `WindowInsets.safeDrawing`. Let backgrounds draw behind the system bars.
+- Drop list selection or scroll position when the size class changes. Hoist that state.
+
+Touch targets are at least 48dp. Text must survive a large font scale. A real screen gets previews at compact, medium, and expanded width.
+
+Add the adaptive Compose artifact when the first real screen needs it, not before.

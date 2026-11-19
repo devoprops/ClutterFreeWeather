@@ -1,0 +1,8 @@
+Planning and android weather app, US only, no ads, etc. ClutterFree Weather is the name. Includes widgets.
+What is the best language and approach?
+I have android studio. can I use that to do the actual compile-build to device?
+should I have weather and radar in one, or separate apps.
+Need rules .mdc for agent behavior, coding practices, etc. there is a starting point there for agent behavioe, but it is generic and incomplete
+
+I have pretty strict UI/UX design plans, so just wanting to get some upfront setup done correctly. 
+Once we settle on some approaches, then I will give you a clear vision of interface

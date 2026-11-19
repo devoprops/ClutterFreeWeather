@@ -1,0 +1,44 @@
+---
+description: Google Play target API, permissions, and data-handling limits for ClutterFree Weather.
+alwaysApply: true
+---
+
+# Google Play
+
+Do not lower `targetSdk`. Before a store upload, re-check https://support.google.com/googleplay/android-developer/answer/11926878. The floor is API 36 as of 31 Aug 2026. New apps and updates must target API 37 in August 2027. This project targets 37. `compileSdk` stays at least 37.1 while Compose BOM `2026.11.01` is in use.
+
+Ship an Android App Bundle with Play App Signing. Never commit a keystore or `local.properties`.
+
+Console forms are filed by the user. Name the forms the current manifest triggers (Data safety, Advertising ID, privacy policy, location). Do not claim a form is filed.
+
+## Native code and ads
+
+This app is Kotlin and Compose. Do not add an SDK with native `.so` libraries unless those libraries are 16 KB aligned. Do not add the NDK unless a feature requires it.
+
+Advertising ID declaration stays No. Keep `com.google.android.gms.permission.AD_ID` stripped with `tools:node="remove"`. No AdMob, Firebase Analytics, or Crashlytics unless the user explicitly asks, because those pull the advertising ID.
+
+## Permissions
+
+Declare a permission only when the feature that needs it exists. Never leave a placeholder permission in the manifest.
+
+Do not add SMS, call log, contacts, photo or video storage, all-files access, package visibility, overlay, exact alarm, or accessibility.
+
+`INTERNET` arrives with the first network call. HTTPS only. No cleartext.
+
+`POST_NOTIFICATIONS` only after the user opts into alerts, and only in context on API 33+.
+
+No foreground service for weather refresh. A service, if one is ever required, needs a type and a Play declaration.
+
+## Location
+
+When location is requested:
+
+- Coarse and in-use first. Precise only when coarse cannot do the job, with the reason stated.
+- Never `ACCESS_BACKGROUND_LOCATION`. Widgets and refresh use the last chosen place, not a background fix.
+- One-time precise location on target 37 uses the Android location button and `onlyForLocationButton`. Play enforces that on 27 Jan 2027. Do not request `ACCESS_FINE_LOCATION` when coarse or the location button is enough.
+- Show the reason before the system dialog. If the user denies it, manual US place entry still works.
+- Location is not for ads or analytics. Do not sell it.
+- Sending location to a weather API without storing it is ephemeral. It still belongs in the privacy policy and Data safety form. Caching coordinates is collection and must be declared as approximate or precise, for app functionality.
+- A foreground-service location type is only for a direct user action that ends immediately.
+
+US-only is a product limit. Country availability is a Play Console setting, not a permission. There is no account system in v1, so there is no account-deletion flow yet. Do not invent a privacy-policy page until the user has a URL. IP-inferred location still counts as approximate location in Data safety.

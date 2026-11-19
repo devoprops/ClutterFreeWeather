@@ -1,0 +1,26 @@
+---
+description: Kotlin and Jetpack Compose conventions for ClutterFree Weather.
+globs: "**/*.{kt,kts}"
+alwaysApply: false
+---
+
+# Kotlin and Compose
+
+Kotlin only. Do not add Java source.
+
+Follow the official Kotlin style (`kotlin.code.style=official`).
+
+## Compose
+
+- Keep state in the caller. Composables receive state and event callbacks.
+- UI logic stays in the composable. Data loading does not.
+- Add a `@Preview` when a composable has a real layout. Skip previews for one-line placeholders.
+- Material 3. Adaptive layout rules live in `layout-standards.mdc`.
+
+## Structure
+
+Single `app` module. Add a package only when a feature arrives: `ui`, then `weather`, `radar`, and `data`.
+
+Do not add Hilt, extra modules, or a repository interface until a second implementation needs it.
+
+Coroutines and Flow are the async tools once a feature needs them. Do not add them for unused scaffolding.

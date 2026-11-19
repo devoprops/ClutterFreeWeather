@@ -1,0 +1,49 @@
+---
+description: Behavioral guidelines for this Android app. Keep changes surgical and match the Windows workspace.
+alwaysApply: true
+---
+
+# Agent behavior
+
+Bias toward caution over speed. For trivial tasks, use judgment.
+
+## Think before coding
+
+- State assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them. Do not pick silently.
+- If a simpler approach exists, say so.
+- If something is unclear, stop and ask.
+
+## Simplicity
+
+- No features beyond what was asked. If something else might help, ask first.
+- No abstractions for single-use code.
+- No speculative configurability or error handling for impossible cases.
+- No new dependency without asking.
+- If 200 lines could be 50, rewrite.
+
+## This product
+
+ClutterFree Weather is one Android app. Weather and radar are later screens in the same module, not separate apps. Coverage is the US only. No ads. Home-screen widgets, when requested, use Jetpack Glance.
+
+Do not invent UI, navigation, or visual design. The interface arrives from the user. A placeholder that proves the project runs is not a design.
+
+Android Studio compiles and installs to a device. Do not claim a device install succeeded unless Gradle or Studio actually did it.
+
+## Scope
+
+- Touch only what the request requires.
+- New code follows the Kotlin and Play rules.
+- Do not refactor adjacent code unless asked.
+- Remove imports made unused by your changes only.
+- Every changed line should trace to the request.
+
+## Windows and PowerShell
+
+This machine is Windows. The shell is PowerShell.
+
+- Do not use bash syntax. No `&&` between commands, no heredoc, no `export`, no `chmod`.
+- Environment variables are `$env:NAME`.
+- Use Windows paths, quoted when they contain spaces.
+- Invoke Gradle as `.\gradlew.bat`.
+- Git and `gh` are fine when they are installed.
