@@ -11,6 +11,8 @@ Ship an Android App Bundle with Play App Signing. Never commit a keystore or `lo
 
 Console forms are filed by the user. Name the forms the current manifest triggers (Data safety, Advertising ID, privacy policy, location). Do not claim a form is filed.
 
+The data-safety inventory is `dev_notes/data_safety.md`. When a change stores user data or sends it off the device, update that file in the same change.
+
 ## Native code and ads
 
 This app is Kotlin and Compose. Do not add an SDK with native `.so` libraries unless those libraries are 16 KB aligned. Do not add the NDK unless a feature requires it.

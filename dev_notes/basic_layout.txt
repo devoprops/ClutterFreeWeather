@@ -1,0 +1,31 @@
+Main card top to bottom is Location, Today, Hourly, Extended, Radar. Settings can swap order Top to Bottom
+
+Today: 3 sub-panels (2 side-by-side and one long below)
+sub 1 (left) simple large card with current condition icon (sunny, cloudy, raining), large temperature in middle, and high/low on in bottom right. 
+sub2 Right: graph lines of temp, rain chance, humidity, wind, etc with tracking line and hour marks on top. background transitions from light to grey (day to night). settings determine graph lines via checkboxes.
+sub 3 below: verbose description of the day 'detail for day'.
+
+detail for day will have the verbose forcast, sunrise, sunset, high, low, humidity etc.
+
+Hourly (two subpanels top-bottom):
+top: scrollable L-R row of box icons (similar to Today sub 1) showing icons for each hour (maybe 6 in view at a time with day-name (MTWThFSS) above the row wth line indicating transitioning to next day. night is moon (correct phase) with clear, cloudy, rainy, and day is sun. Temp only overlaid. dragging to the left shows the next hours as far as there is data.
+bottom is x-axis aligned to the hour boxes showing  graph of predicted temperature, humidity, rain prob, etc. based on settings.
+
+Daily/Extended:
+similar to hourly, but:
+top: row of box icons (settings determines how many days to include in view - default 3. These are larger icons than hourly. Dragging to the left keeps going ahead in days as far as forecast can go.
+bottom: x-axis aligned graph showing  graph of predicted temperature, humidity, rain prob, etc. based on settings.
+
+Radar: 
+Two-modes. Single rectangular card that shows current location and radar zoomed to about 50 miles (settings).
+clicking opens large card that allows zoom and some layer controls, and play/pause .
+
+icons will need to exist for all kinds of weather combos.  Should we come up with a matrix of compbinations (sunny, partly sunny, night/day, moon phase, rain, etc.) and I make the icons, or what?
+I want some kind of indication of morning-day-evening-night on icons. maybe just slightly darken morning and evening based on being within an hour or so of sunrise sunset
+
+the graph cards will have (settings selectable) temp, rain chance, humidity, wind, and others with temp and rain being default on. I want those kind
+of line graphs where you can slide a vertical scrubber that tells you the exact value for each series. 
+Also, the graphs should show some kind of bacground color delineation for important points in the day. Maybe slightly shaded for nightime. 
+for extended graph, maybe altenate a background color for each day of the week. Something like that.
+
+Alerts bumps everything down for a summary banner at the top that when clicked opens the full alert. We can talk about notifications later (like alerts, rain starting soon, etc.)

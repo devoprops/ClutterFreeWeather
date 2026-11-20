@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- This app does not use an advertising ID. Drop the permission if a dependency merges it. -->
     <uses-permission
         android:name="com.google.android.gms.permission.AD_ID"
@@ -19,7 +21,8 @@
         android:theme="@style/Theme.ClutterFreeWeather">
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

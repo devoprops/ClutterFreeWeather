@@ -1,0 +1,10 @@
+{
+  "features": [
+    {
+      "properties": {
+        "@id": "https://api.weather.gov/stations/KORD",
+        "name": "Chicago O'Hare"
+      }
+    }
+  ]
+}

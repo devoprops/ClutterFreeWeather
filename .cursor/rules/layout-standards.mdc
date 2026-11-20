@@ -5,15 +5,15 @@ alwaysApply: true
 
 # Layout, 2026
 
-Lay out for the window, not the device. Read size with `currentWindowAdaptiveInfo(supportLargeAndXLargeWidth = true)` from `androidx.compose.material3.adaptive`, and pass that size class down as state. Do not branch on phone, tablet, or orientation.
+Lay out for the window, not the device. Read size with `currentWindowAdaptiveInfoV2()` from `androidx.compose.material3.adaptive`, and pass that size class down as state. That call includes large and extra-large widths. Do not branch on phone, tablet, or orientation.
 
 Width: compact under 600dp, medium under 840dp, expanded under 1200dp, large under 1600dp, extra-large from 1600dp. Check height too. A landscape phone is often medium width and compact height, and two panes do not fit there.
 
 ## What to build
 
-Play requires Tier 3 in April 2027: fill the window, no letterboxing, and keep scroll, text, and playback across rotation, fold, and resize. Build to Tier 2. This app is list-detail (places, conditions, hourly) plus a supporting pane (radar or extra detail beside the main reading). Use `ListDetailPaneScaffold` and `SupportingPaneScaffold`. Do not hand-roll pane visibility.
+Play requires Tier 3 in April 2027: fill the window, no letterboxing, and keep scroll, text, and playback across rotation, fold, and resize. Build to Tier 2.
 
-When there is more than one destination, use `NavigationSuiteScaffold`. The default is a bar when width or height is compact, or in tabletop posture, and a rail otherwise. Do not pin a bottom bar on a wide window.
+The home screen is one scroll of cards, in the order in `dev_notes/basic_layout.txt`. On compact width, stack them. On expanded width, keep that stack in the main column and put Radar in a supporting pane so the cards are not stretched across the window. Do not add a bottom navigation bar. There is one home, not a destination per card.
 
 ## Do not
 

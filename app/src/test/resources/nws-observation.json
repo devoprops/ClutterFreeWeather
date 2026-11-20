@@ -1,0 +1,15 @@
+{
+  "properties": {
+    "timestamp": "2026-11-19T23:00:00+00:00",
+    "textDescription": "Clear",
+    "icon": "https://api.weather.gov/icons/land/night/skc?size=medium",
+    "temperature": { "unitCode": "wmoUnit:degC", "value": 10.0 },
+    "dewpoint": { "unitCode": "wmoUnit:degC", "value": 2.0 },
+    "windSpeed": { "unitCode": "wmoUnit:km_h-1", "value": 36.0 },
+    "windDirection": { "unitCode": "wmoUnit:degree_(angle)", "value": 270 },
+    "windGust": { "unitCode": "wmoUnit:m_s-1", "value": null },
+    "heatIndex": { "unitCode": "wmoUnit:degC", "value": null },
+    "windChill": { "unitCode": "wmoUnit:degC", "value": 8.0 },
+    "relativeHumidity": { "unitCode": "wmoUnit:percent", "value": 55 }
+  }
+}
