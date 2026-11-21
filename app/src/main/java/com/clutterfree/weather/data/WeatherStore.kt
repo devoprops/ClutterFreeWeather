@@ -1,7 +1,10 @@
 package com.clutterfree.weather.data
 
+import com.clutterfree.weather.weather.AppConfig
+import com.clutterfree.weather.weather.DetailItem
 import com.clutterfree.weather.weather.DisplayUnits
 import com.clutterfree.weather.weather.ForecastPeriod
+import com.clutterfree.weather.weather.GraphSettings
 import com.clutterfree.weather.weather.HomeCard
 import com.clutterfree.weather.weather.HomeSettings
 import com.clutterfree.weather.weather.Observation
@@ -37,7 +40,23 @@ class WeatherStore(private val directory: File) {
 
     fun writePlace(place: Place) = synchronized(lock) {
         val current = readPlaceFile()
-        writePlaceFile(current.copy(place = place))
+        val saved = current.saved.map { if (it.displayName == place.displayName) place else it }
+        val withPlace = if (saved.any { it.displayName == place.displayName }) saved else saved + place
+        writePlaceFile(current.copy(place = place, saved = withPlace))
+    }
+
+    fun readSaved(): List<Place> = synchronized(lock) { readPlaceFile().saved }
+
+    fun removeSaved(displayName: String) = synchronized(lock) {
+        val current = readPlaceFile()
+        if (current.place?.displayName == displayName) return@synchronized
+        writePlaceFile(current.copy(saved = current.saved.filterNot { it.displayName == displayName }))
+    }
+
+    fun reorderSaved(displayNames: List<String>) = synchronized(lock) {
+        val current = readPlaceFile()
+        val rank = displayNames.withIndex().associate { it.value to it.index }
+        writePlaceFile(current.copy(saved = current.saved.sortedBy { rank[it.displayName] ?: Int.MAX_VALUE }))
     }
 
     fun readSnapshot(): WeatherSnapshot? = synchronized(lock) { readSnapshotFile() }
@@ -62,16 +81,29 @@ class WeatherStore(private val directory: File) {
 
     private fun readPlaceFile(): StoredPlace {
         val file = File(directory, PLACE_FILE)
-        if (!file.exists()) return StoredPlace(DisplayUnits(), HomeSettings(), null)
+        if (!file.exists()) return StoredPlace(DisplayUnits(), HomeSettings(), null, emptyList())
         return try {
             val json = JSONObject(file.readText())
+            val place = json.optJSONObject("place")?.let(::place)
+            val array = json.optJSONArray("saved")
+            val saved = if (array == null) {
+                emptyList()
+            } else {
+                List(array.length()) { index -> runCatching { place(array.getJSONObject(index)) }.getOrNull() }
+                    .filterNotNull()
+            }
             StoredPlace(
                 units = units(json.optJSONObject("units")),
                 home = home(json.optJSONObject("home")),
-                place = json.optJSONObject("place")?.let(::place),
+                place = place,
+                saved = if (place != null && saved.none { it.displayName == place.displayName }) {
+                    saved + place
+                } else {
+                    saved
+                },
             )
         } catch (_: Exception) {
-            StoredPlace(DisplayUnits(), HomeSettings(), null)
+            StoredPlace(DisplayUnits(), HomeSettings(), null, emptyList())
         }
     }
 
@@ -80,6 +112,7 @@ class WeatherStore(private val directory: File) {
             .put("units", unitsJson(stored.units))
             .put("home", homeJson(stored.home))
             .put("place", stored.place?.let(::placeJson) ?: JSONObject.NULL)
+            .put("saved", JSONArray().apply { stored.saved.forEach { put(placeJson(it)) } })
         write(File(directory, PLACE_FILE), json)
     }
 
@@ -122,27 +155,69 @@ class WeatherStore(private val directory: File) {
             }.filterNotNull().ifEmpty { HomeSettings().cardOrder }
         }
         val order = cards + HomeCard.entries.filter { it !in cards }
+        val legacyGraph = GraphSettings(
+            temperature = json.optBoolean("showTemperature", true),
+            rainChance = json.optBoolean("showRainChance", true),
+            humidity = json.optBoolean("showHumidity", false),
+            wind = json.optBoolean("showWind", false),
+            dewpoint = json.optBoolean("showDewpoint", false),
+        )
+        val storedDetails = json.optJSONArray("details")
+        val details = if (storedDetails == null) {
+            HomeSettings().details
+        } else {
+            val known = json.optJSONArray("knownDetails")?.let(::detailItems) ?: LEGACY_DETAILS
+            detailItems(storedDetails) + DetailItem.entries.filter { it !in known }
+        }
         return HomeSettings(
             cardOrder = order,
-            showTemperature = json.optBoolean("showTemperature", true),
-            showRainChance = json.optBoolean("showRainChance", true),
-            showHumidity = json.optBoolean("showHumidity", false),
-            showWind = json.optBoolean("showWind", false),
-            showDewpoint = json.optBoolean("showDewpoint", false),
-            extendedVisibleDays = json.optInt("extendedVisibleDays", 3).coerceIn(1, 7),
-            radarMiles = json.optInt("radarMiles", 50).coerceAtLeast(1),
+            todayGraph = graph(json.optJSONObject("todayGraph"), legacyGraph),
+            hourlyGraph = graph(json.optJSONObject("hourlyGraph"), legacyGraph),
+            extendedGraph = graph(json.optJSONObject("extendedGraph"), legacyGraph),
+            details = details,
+            extendedVisibleDays = json.optInt("extendedVisibleDays", AppConfig.EXTENDED_VISIBLE_DAYS)
+                .coerceIn(AppConfig.EXTENDED_DAY_MIN, AppConfig.EXTENDED_DAY_MAX),
+            radarMiles = json.optInt("radarMiles", AppConfig.RADAR_MILES).coerceAtLeast(1),
+            cardTheme = enumValue(json.optString("cardTheme"), HomeSettings().cardTheme),
+            chartOrientation = enumValue(json.optString("chartOrientation"), HomeSettings().chartOrientation),
         )
     }
 
+    private fun detailItems(array: JSONArray): Set<DetailItem> = List(array.length()) { index ->
+        runCatching { DetailItem.valueOf(array.getString(index)) }.getOrNull()
+    }.filterNotNull().toSet()
+
+    private fun graph(json: JSONObject?, fallback: GraphSettings): GraphSettings {
+        if (json == null) return fallback
+        return GraphSettings(
+            visible = json.optBoolean("visible", fallback.visible),
+            temperature = json.optBoolean("temperature", fallback.temperature),
+            rainChance = json.optBoolean("rainChance", fallback.rainChance),
+            humidity = json.optBoolean("humidity", fallback.humidity),
+            wind = json.optBoolean("wind", fallback.wind),
+            dewpoint = json.optBoolean("dewpoint", fallback.dewpoint),
+        )
+    }
+
+    private fun graphJson(graph: GraphSettings): JSONObject = JSONObject()
+        .put("visible", graph.visible)
+        .put("temperature", graph.temperature)
+        .put("rainChance", graph.rainChance)
+        .put("humidity", graph.humidity)
+        .put("wind", graph.wind)
+        .put("dewpoint", graph.dewpoint)
+
     private fun homeJson(home: HomeSettings): JSONObject = JSONObject()
         .put("cardOrder", JSONArray().apply { home.cardOrder.forEach { put(it.name) } })
-        .put("showTemperature", home.showTemperature)
-        .put("showRainChance", home.showRainChance)
-        .put("showHumidity", home.showHumidity)
-        .put("showWind", home.showWind)
-        .put("showDewpoint", home.showDewpoint)
+        .put("todayGraph", graphJson(home.todayGraph))
+        .put("hourlyGraph", graphJson(home.hourlyGraph))
+        .put("extendedGraph", graphJson(home.extendedGraph))
+        .put("details", JSONArray().apply { home.details.forEach { put(it.name) } })
+        .put("knownDetails", JSONArray().apply { DetailItem.entries.forEach { put(it.name) } })
         .put("extendedVisibleDays", home.extendedVisibleDays)
         .put("radarMiles", home.radarMiles)
+        .put("cardTheme", home.cardTheme.name)
+        .put("chartOrientation", home.chartOrientation.name)
 
     private fun place(json: JSONObject): Place = Place(
         displayName = json.getString("displayName"),
@@ -300,11 +375,24 @@ class WeatherStore(private val directory: File) {
         val units: DisplayUnits,
         val home: HomeSettings,
         val place: Place?,
+        val saved: List<Place>,
     )
 
     private companion object {
         const val PLACE_FILE = "place.json"
         const val SNAPSHOT_FILE = "snapshot.json"
+
+        /** Detail items that existed before the stored file listed which items it knew about. */
+        val LEGACY_DETAILS = setOf(
+            DetailItem.DAY_TEXT,
+            DetailItem.NIGHT_TEXT,
+            DetailItem.SUNRISE,
+            DetailItem.SUNSET,
+            DetailItem.HIGH,
+            DetailItem.LOW,
+            DetailItem.HUMIDITY,
+            DetailItem.WIND,
+        )
     }
 }
 

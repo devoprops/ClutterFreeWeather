@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -18,25 +20,44 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.clutterfree.weather.R
+import com.clutterfree.weather.ui.DateFormats
+import com.clutterfree.weather.ui.theme.Dimens
+import com.clutterfree.weather.ui.theme.WeatherColors
+import com.clutterfree.weather.weather.AppConfig
+import com.clutterfree.weather.weather.Measures
 import com.clutterfree.weather.weather.DisplayUnits
 import com.clutterfree.weather.weather.ForecastPeriod
-import com.clutterfree.weather.weather.HomeSettings
+import com.clutterfree.weather.weather.GraphSettings
 import com.clutterfree.weather.weather.UnitFormatter
+import com.clutterfree.weather.weather.ValueRange
 import com.clutterfree.weather.weather.interpolate
+import com.clutterfree.weather.weather.percentRange
+import com.clutterfree.weather.weather.temperatureRange
+import com.clutterfree.weather.weather.windRange
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 data class GraphPoint(
     val time: Instant,
@@ -69,19 +90,25 @@ fun WeatherGraph(
     labels: List<AxisLabel>,
     scrubberFraction: Float,
     onScrubberFraction: (Float) -> Unit,
-    settings: HomeSettings,
+    graph: GraphSettings,
     units: DisplayUnits,
+    temperatureCenterCelsius: Double?,
     timeAt: (Double) -> Instant,
     zone: ZoneId,
+    pastUntil: Double? = null,
+    plotHeight: Dp = Dimens.graphHeight,
+    vertical: Boolean = false,
+    leading: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val formatter = UnitFormatter(units)
     val span = (domainEnd - domainStart).coerceAtLeast(0.0)
     val fraction = scrubberFraction.coerceIn(0f, 1f)
     val at = domainStart + fraction * span
-    val series = plotSeries(settings, formatter)
+    val series = plotSeries(graph, formatter)
+    val time = DateFormats.clock.format(timeAt(at).atZone(zone))
     val readout = buildList {
-        add(CLOCK.format(timeAt(at).atZone(zone)))
+        add(time)
         series.filter { it.enabled }.forEach { item ->
             val samples = points.mapNotNull { point ->
                 val x = xOf(point) ?: return@mapNotNull null
@@ -90,19 +117,43 @@ fun WeatherGraph(
             }
             interpolate(samples, at)?.let { add(item.readout(it)) }
         }
-    }
+    }.joinToString(", ")
 
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = readout.joinToString("  "),
-            style = MaterialTheme.typography.bodyMedium,
-        )
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(Dimens.tightGap)) {
+        if (vertical) {
+            Row(Modifier.fillMaxWidth().height(plotHeight)) {
+                leading?.invoke()
+                GraphCanvas(
+                    points = points,
+                    xOf = xOf,
+                    domainStart = domainStart,
+                    domainEnd = domainEnd,
+                    span = span,
+                    fraction = fraction,
+                    onScrubberFraction = onScrubberFraction,
+                    nightBands = nightBands,
+                    dayTints = dayTints,
+                    series = series,
+                    temperatureCenterCelsius = temperatureCenterCelsius,
+                    pastUntil = pastUntil,
+                    vertical = true,
+                    time = time,
+                    readout = readout,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
+            return@Column
+        }
         if (labels.isNotEmpty() && span > 0.0) {
-            BoxWithConstraints(Modifier.fillMaxWidth().height(18.dp)) {
+            BoxWithConstraints(Modifier.fillMaxWidth().height(Dimens.axisLabel)) {
                 labels.forEach { label ->
                     val place = ((label.at - domainStart) / span).toFloat()
                     if (place < 0f || place > 1f) return@forEach
-                    val x = (maxWidth * place - 18.dp).coerceIn(0.dp, (maxWidth - 36.dp).coerceAtLeast(0.dp))
+                    val half = Dimens.axisLabelWidth / 2
+                    val x = (maxWidth * place - half).coerceIn(
+                        Dimens.zero,
+                        (maxWidth - Dimens.axisLabelWidth).coerceAtLeast(Dimens.zero),
+                    )
                     Text(
                         text = label.text,
                         modifier = Modifier.offset(x = x),
@@ -122,7 +173,12 @@ fun WeatherGraph(
             nightBands = nightBands,
             dayTints = dayTints,
             series = series,
-            modifier = Modifier.fillMaxWidth().height(150.dp),
+            temperatureCenterCelsius = temperatureCenterCelsius,
+            pastUntil = pastUntil,
+            vertical = false,
+            time = time,
+            readout = readout,
+            modifier = Modifier.fillMaxWidth().height(plotHeight),
         )
     }
 }
@@ -139,138 +195,308 @@ private fun GraphCanvas(
     nightBands: List<ClosedFloatingPointRange<Double>>,
     dayTints: List<ClosedFloatingPointRange<Double>>,
     series: List<PlottedSeries>,
+    temperatureCenterCelsius: Double?,
+    pastUntil: Double?,
+    vertical: Boolean,
+    time: String,
+    readout: String,
     modifier: Modifier,
 ) {
     val onScrub by rememberUpdatedState(onScrubberFraction)
-    val night = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-    val tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
+    val night = MaterialTheme.colorScheme.onSurface.copy(alpha = AppConfig.NIGHT_BAND_ALPHA)
+    val tint = MaterialTheme.colorScheme.primary.copy(alpha = AppConfig.DAY_TINT_ALPHA)
     val scrubber = MaterialTheme.colorScheme.onSurface
+    val gridline = MaterialTheme.colorScheme.onSurface.copy(alpha = AppConfig.GRIDLINE_ALPHA)
+    val tipBackground = MaterialTheme.colorScheme.surface.copy(alpha = AppConfig.TIP_BACKGROUND_ALPHA)
+    val tipStyle = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+    val timeColor = MaterialTheme.colorScheme.onSurface
+    val measurer = rememberTextMeasurer()
     Canvas(
-        modifier.pointerInput(Unit) {
+        modifier
+            .semantics { contentDescription = readout }
+            .pointerInput(vertical) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
-                fun report(x: Float) {
-                    if (size.width <= 0f) return
-                    onScrub((x / size.width).coerceIn(0f, 1f))
+                fun report(position: Offset) {
+                    val length = if (vertical) size.height else size.width
+                    if (length <= 0) return
+                    val along = if (vertical) position.y else position.x
+                    onScrub((along / length).coerceIn(0f, 1f))
                 }
-                report(down.position.x)
+                report(down.position)
                 drag(down.id) { change ->
-                    report(change.position.x)
+                    report(change.position)
                     change.consume()
                 }
             }
         },
     ) {
         if (span <= 0.0) return@Canvas
-        val plotLeft = 4.dp.toPx()
+        val plotLeft = Dimens.graphInset.toPx()
         val plotRight = size.width - plotLeft
-        val plotTop = 4.dp.toPx()
+        val plotTop = Dimens.graphInset.toPx()
         val plotBottom = size.height - plotTop
-        fun xToPx(x: Double): Float {
+        fun along(x: Double): Float {
             val place = ((x - domainStart) / span).toFloat()
-            return plotLeft + place * (plotRight - plotLeft)
+            return if (vertical) plotTop + place * (plotBottom - plotTop) else plotLeft + place * (plotRight - plotLeft)
         }
-        fun yToPx(value: Double, min: Double, max: Double): Float {
-            val place = if (max == min) 0.5f else ((value - min) / (max - min)).toFloat()
-            return plotBottom - place * (plotBottom - plotTop)
+        fun across(value: Double, range: ValueRange): Float {
+            val width = range.max - range.min
+            val place = if (width == 0.0) 0.5f else ((value - range.min) / width).toFloat()
+            return if (vertical) plotLeft + place * (plotRight - plotLeft) else plotBottom - place * (plotBottom - plotTop)
+        }
+        fun point(x: Double, value: Double, range: ValueRange): Offset =
+            if (vertical) Offset(across(value, range), along(x)) else Offset(along(x), across(value, range))
+        fun fillAlong(start: Double, end: Double, color: Color) {
+            if (vertical) {
+                drawRect(color, Offset(plotLeft, along(start)), Size(plotRight - plotLeft, along(end) - along(start)))
+            } else {
+                drawRect(color, Offset(along(start), plotTop), Size(along(end) - along(start), plotBottom - plotTop))
+            }
         }
         fun drawBand(range: ClosedFloatingPointRange<Double>, color: Color) {
             val start = range.start.coerceAtLeast(domainStart)
             val end = range.endInclusive.coerceAtMost(domainEnd)
             if (end <= start) return
-            drawRect(
-                color = color,
-                topLeft = Offset(xToPx(start), plotTop),
-                size = androidx.compose.ui.geometry.Size(xToPx(end) - xToPx(start), plotBottom - plotTop),
-            )
+            fillAlong(start, end, color)
         }
         dayTints.forEach { drawBand(it, tint) }
         nightBands.forEach { drawBand(it, night) }
+        val scrubberX = domainStart + fraction * span
+        val tips = mutableListOf<Tip>()
         clipRect(plotLeft, plotTop, plotRight, plotBottom) {
-            series.filter { it.enabled }.forEach { item ->
-                val located = points.mapNotNull { point ->
+            val locatedSeries = series.filter { it.enabled }.map { item ->
+                item to points.mapNotNull { point ->
                     val x = xOf(point) ?: return@mapNotNull null
                     val value = item.value(point) ?: return@mapNotNull null
                     x to value
                 }.sortedBy { it.first }
+            }
+            val temperatureSamples = locatedSeries
+                .filter { (item, _) -> item.scale == GraphScale.TEMPERATURE }
+                .flatMap { (_, located) -> located.map { it.second } }
+            val center = temperatureCenterCelsius
+                ?: temperatureSamples.average().takeIf { temperatureSamples.isNotEmpty() }
+                ?: AppConfig.DEFAULT_TEMPERATURE_CELSIUS
+            val sharedTemperature = temperatureRange(center, temperatureSamples)
+            val percentSamples = locatedSeries
+                .filter { (item, _) -> item.scale == GraphScale.PERCENT }
+                .flatMap { (_, located) -> located.map { it.second } }
+            val dash = PathEffect.dashPathEffect(floatArrayOf(Dimens.gridDash.toPx(), Dimens.gridDash.toPx()))
+            fun reference(value: Double, range: ValueRange) {
+                val at = across(value, range)
+                drawLine(
+                    color = gridline,
+                    start = if (vertical) Offset(at, plotTop) else Offset(plotLeft, at),
+                    end = if (vertical) Offset(at, plotBottom) else Offset(plotRight, at),
+                    strokeWidth = Dimens.hairline.toPx(),
+                    pathEffect = dash,
+                )
+            }
+            if (locatedSeries.any { (item, _) -> item.scale == GraphScale.TEMPERATURE }) {
+                if (Measures.FREEZING_CELSIUS in sharedTemperature.min..sharedTemperature.max) {
+                    reference(Measures.FREEZING_CELSIUS, sharedTemperature)
+                }
+            }
+            if (locatedSeries.any { (item, _) -> item.scale == GraphScale.PERCENT }) {
+                reference(AppConfig.GRIDLINE_PERCENT, percentRange(percentSamples))
+            }
+            locatedSeries.forEach { (item, located) ->
                 if (located.isEmpty()) return@forEach
-                val min = located.minOf { it.second }
-                val max = located.maxOf { it.second }
+                val range = when (item.scale) {
+                    GraphScale.TEMPERATURE -> sharedTemperature
+                    GraphScale.PERCENT -> percentRange(located.map { it.second })
+                    GraphScale.WIND -> windRange(located.map { it.second })
+                }
+                interpolate(located, scrubberX)?.let { value ->
+                    tips += Tip(across(value, range), item.tip(value), pointColor(item, value))
+                }
+                val stroke = Stroke(width = Dimens.graphStroke.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                 if (located.size == 1) {
                     drawCircle(
-                        color = item.color,
-                        radius = 3.dp.toPx(),
-                        center = Offset(xToPx(located[0].first), yToPx(located[0].second, min, max)),
+                        color = pointColor(item, located[0].second),
+                        radius = Dimens.graphPoint.toPx(),
+                        center = point(located[0].first, located[0].second, range),
                     )
                     return@forEach
                 }
                 val path = Path()
                 located.forEachIndexed { index, sample ->
-                    val px = xToPx(sample.first)
-                    val py = yToPx(sample.second, min, max)
-                    if (index == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                    val at = point(sample.first, sample.second, range)
+                    if (index == 0) path.moveTo(at.x, at.y) else path.lineTo(at.x, at.y)
                 }
-                drawPath(
-                    path = path,
-                    color = item.color,
-                    style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
-                )
+                if (item.gradient) {
+                    val brush = if (vertical) {
+                        temperatureBrush(range, start = plotRight, end = plotLeft, vertical = false)
+                    } else {
+                        temperatureBrush(range, start = plotTop, end = plotBottom, vertical = true)
+                    }
+                    drawPath(path, brush, style = stroke)
+                } else {
+                    drawPath(path, item.color, style = stroke)
+                }
             }
         }
-        val scrubberX = xToPx(domainStart + fraction * span)
+        if (pastUntil != null) {
+            val end = pastUntil.coerceAtMost(domainEnd)
+            if (end > domainStart) fillAlong(domainStart, end, WeatherColors.pastOverlay)
+        }
+        val scrubberAt = along(scrubberX)
         drawLine(
             color = scrubber,
-            start = Offset(scrubberX, plotTop),
-            end = Offset(scrubberX, plotBottom),
-            strokeWidth = 2.dp.toPx(),
+            start = if (vertical) Offset(plotLeft, scrubberAt) else Offset(scrubberAt, plotTop),
+            end = if (vertical) Offset(plotRight, scrubberAt) else Offset(scrubberAt, plotBottom),
+            strokeWidth = Dimens.scrubber.toPx(),
         )
+        val pad = Dimens.tipPadding.toPx()
+        val gap = Dimens.tipGap.toPx()
+        val corner = CornerRadius(Dimens.tipCorner.toPx())
+        val timeTip = Tip(if (vertical) plotLeft else plotTop, time, timeColor)
+        val laidOut = (listOf(timeTip) + tips.sortedBy { it.across }).map { tip ->
+            tip to measurer.measure(tip.text, tipStyle.copy(color = tip.color))
+        }
+        fun extent(layout: TextLayoutResult) =
+            if (vertical) layout.size.width + pad * 2 else layout.size.height + pad * 2
+        val starts = FloatArray(laidOut.size)
+        var next = Float.NEGATIVE_INFINITY
+        laidOut.forEachIndexed { index, (tip, layout) ->
+            val length = extent(layout)
+            val wanted = if (index == 0) tip.across else tip.across - length / 2
+            starts[index] = maxOf(wanted, next)
+            next = starts[index] + length + gap
+        }
+        val limit = if (vertical) size.width else size.height
+        val overflow = (starts.last() + extent(laidOut.last().second) - limit).coerceAtLeast(0f)
+        laidOut.forEachIndexed { index, (_, layout) ->
+            val width = layout.size.width + pad * 2
+            val height = layout.size.height + pad * 2
+            val start = (starts[index] - overflow).coerceAtLeast(0f)
+            val topLeft = if (vertical) {
+                val below = scrubberAt + gap
+                Offset(start, if (below + height > size.height) scrubberAt - gap - height else below)
+            } else {
+                val right = scrubberAt + gap
+                Offset(if (right + width > size.width) scrubberAt - gap - width else right, start)
+            }
+            drawRoundRect(tipBackground, topLeft, Size(width, height), corner)
+            drawText(layout, topLeft = topLeft + Offset(pad, pad))
+        }
     }
 }
 
+private data class Tip(val across: Float, val text: String, val color: Color)
+
 @Composable
-private fun plotSeries(settings: HomeSettings, formatter: UnitFormatter): List<PlottedSeries> {
+private fun plotSeries(settings: GraphSettings, formatter: UnitFormatter): List<PlottedSeries> {
     val rain = stringResource(R.string.readout_rain)
     val humidity = stringResource(R.string.readout_humidity)
     val dew = stringResource(R.string.readout_dewpoint)
     return listOf(
         PlottedSeries(
-            enabled = settings.showTemperature,
-            color = MaterialTheme.colorScheme.primary,
+            enabled = settings.temperature,
+            color = WeatherColors.orange,
+            scale = GraphScale.TEMPERATURE,
+            gradient = true,
             readout = formatter::temperatureCompact,
+            tip = formatter::temperatureCompact,
             value = GraphPoint::temperatureCelsius,
         ),
         PlottedSeries(
-            enabled = settings.showRainChance,
-            color = MaterialTheme.colorScheme.tertiary,
+            enabled = settings.rainChance,
+            color = WeatherColors.rain,
+            scale = GraphScale.PERCENT,
             readout = { rain.format(formatter.percent(it)) },
+            tip = formatter::percent,
             value = GraphPoint::rainPercent,
         ),
         PlottedSeries(
-            enabled = settings.showHumidity,
-            color = MaterialTheme.colorScheme.secondary,
+            enabled = settings.humidity,
+            color = WeatherColors.humidity,
+            scale = GraphScale.PERCENT,
             readout = { humidity.format(formatter.percent(it)) },
+            tip = formatter::percent,
             value = GraphPoint::humidityPercent,
         ),
         PlottedSeries(
-            enabled = settings.showWind,
-            color = MaterialTheme.colorScheme.error,
+            enabled = settings.wind,
+            color = WeatherColors.wind,
+            scale = GraphScale.WIND,
             readout = { formatter.wind(it) },
+            tip = { formatter.wind(it) },
             value = GraphPoint::windMetersPerSecond,
         ),
         PlottedSeries(
-            enabled = settings.showDewpoint,
-            color = MaterialTheme.colorScheme.outline,
+            enabled = settings.dewpoint,
+            color = WeatherColors.dewPoint,
+            scale = GraphScale.TEMPERATURE,
             readout = { dew.format(formatter.temperatureCompact(it)) },
+            tip = formatter::temperatureCompact,
             value = GraphPoint::dewpointCelsius,
         ),
     )
 }
 
+private enum class GraphScale { TEMPERATURE, PERCENT, WIND }
+
 private data class PlottedSeries(
     val enabled: Boolean,
     val color: Color,
+    val scale: GraphScale,
+    val gradient: Boolean = false,
     val readout: (Double) -> String,
+    val tip: (Double) -> String,
     val value: (GraphPoint) -> Double?,
 )
 
-private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+private fun pointColor(series: PlottedSeries, celsius: Double): Color =
+    if (series.gradient) temperatureColor(fahrenheit(celsius)) else series.color
+
+/** Gradient from the warmest color at [start] to the coldest at [end]. */
+private fun temperatureBrush(range: ValueRange, start: Float, end: Float, vertical: Boolean): Brush {
+    val steps = AppConfig.TEMPERATURE_GRADIENT_STEPS
+    val colors = List(steps) { index ->
+        val celsius = range.max + (range.min - range.max) * index / (steps - 1)
+        temperatureColor(fahrenheit(celsius))
+    }
+    return if (vertical) {
+        Brush.verticalGradient(colors = colors, startY = start, endY = end)
+    } else {
+        Brush.horizontalGradient(colors = colors, startX = start, endX = end)
+    }
+}
+
+private fun fahrenheit(celsius: Double): Double =
+    celsius * Measures.FAHRENHEIT_PER_CELSIUS + Measures.FAHRENHEIT_OFFSET
+
+private fun band(value: Double, start: Double, end: Double): Float =
+    ((value - start) / (end - start)).toFloat()
+
+private fun temperatureColor(fahrenheit: Double): Color = when {
+    fahrenheit <= AppConfig.TEMPERATURE_FLOOR_F -> WeatherColors.coldPurple
+    fahrenheit < AppConfig.TEMPERATURE_FREEZING_F -> lerp(
+        WeatherColors.coldPurple,
+        WeatherColors.royalBlue,
+        band(fahrenheit, AppConfig.TEMPERATURE_FLOOR_F, AppConfig.TEMPERATURE_FREEZING_F),
+    )
+    fahrenheit < AppConfig.TEMPERATURE_COOL_F -> lerp(
+        WeatherColors.skyBlue,
+        WeatherColors.teal,
+        band(fahrenheit, AppConfig.TEMPERATURE_FREEZING_F, AppConfig.TEMPERATURE_COOL_F),
+    )
+    fahrenheit < AppConfig.TEMPERATURE_MILD_F -> lerp(
+        WeatherColors.freshGreen,
+        WeatherColors.warmYellow,
+        band(fahrenheit, AppConfig.TEMPERATURE_COOL_F, AppConfig.TEMPERATURE_MILD_F),
+    )
+    fahrenheit < AppConfig.TEMPERATURE_HOT_F -> lerp(
+        WeatherColors.orange,
+        WeatherColors.crimson,
+        band(fahrenheit, AppConfig.TEMPERATURE_MILD_F, AppConfig.TEMPERATURE_HOT_F),
+    )
+    fahrenheit < AppConfig.TEMPERATURE_EXTREME_F -> lerp(
+        WeatherColors.crimson,
+        WeatherColors.maroon,
+        band(fahrenheit, AppConfig.TEMPERATURE_HOT_F, AppConfig.TEMPERATURE_EXTREME_F),
+    )
+    else -> WeatherColors.maroon
+}

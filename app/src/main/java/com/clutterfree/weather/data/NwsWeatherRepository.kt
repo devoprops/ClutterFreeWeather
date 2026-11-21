@@ -1,6 +1,8 @@
 package com.clutterfree.weather.data
 
+import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.DisplayUnits
+import com.clutterfree.weather.weather.mergeElapsedToday
 import com.clutterfree.weather.weather.HomeSettings
 import com.clutterfree.weather.weather.LoadResult
 import com.clutterfree.weather.weather.Place
@@ -11,6 +13,7 @@ import com.clutterfree.weather.weather.WeatherSnapshot
 import java.io.File
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 
 class NwsWeatherRepository(
     directory: File,
@@ -46,6 +49,24 @@ class NwsWeatherRepository(
 
     override fun selectedPlace(): Place? = store.readPlace()
 
+    override fun savedPlaces(): List<Place> = store.readSaved()
+
+    override fun switchPlace(displayName: String): Place? {
+        val place = store.readSaved().firstOrNull { it.displayName == displayName } ?: return null
+        if (store.readPlace()?.displayName == displayName) return place
+        store.writePlace(place)
+        store.clearSnapshot()
+        return place
+    }
+
+    override fun removePlace(displayName: String) {
+        store.removeSaved(displayName)
+    }
+
+    override fun reorderPlaces(displayNames: List<String>) {
+        store.reorderSaved(displayNames)
+    }
+
     override fun refresh(): RefreshResult {
         val place = store.readPlace() ?: return RefreshResult.NoPlace
         val previous = store.readSnapshot()
@@ -62,8 +83,12 @@ class NwsWeatherRepository(
             }
             is Fetch.Failed -> return RefreshResult.Failed(first.message, previous)
         }
-        store.writeSnapshot(snapshot)
-        return RefreshResult.Updated(snapshot)
+        val zone = runCatching { ZoneId.of(place.timeZone) }.getOrElse { ZoneId.systemDefault() }
+        val merged = snapshot.copy(
+            hourly = mergeElapsedToday(previous?.hourly.orEmpty(), snapshot.hourly, zone, now()),
+        )
+        store.writeSnapshot(merged)
+        return RefreshResult.Updated(merged)
     }
 
     override fun snapshot(): WeatherSnapshot? = store.readSnapshot()
@@ -188,7 +213,7 @@ class NwsWeatherRepository(
     }
 
     private companion object {
-        val STALE_AFTER: Duration = Duration.ofMinutes(30)
+        val STALE_AFTER: Duration = Duration.ofMinutes(AppConfig.CACHE_MINUTES)
         const val WEATHER_UNAVAILABLE = "Weather service is unavailable."
     }
 }

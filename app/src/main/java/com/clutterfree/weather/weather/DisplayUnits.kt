@@ -27,7 +27,7 @@ enum class PrecipitationUnit {
 class UnitFormatter(private val units: DisplayUnits) {
     fun temperature(celsius: Double): String {
         val value = when (units.temperature) {
-            TemperatureUnit.FAHRENHEIT -> celsius * 9.0 / 5.0 + 32.0
+            TemperatureUnit.FAHRENHEIT -> celsius * Measures.FAHRENHEIT_PER_CELSIUS + Measures.FAHRENHEIT_OFFSET
             TemperatureUnit.CELSIUS -> celsius
         }
         val suffix = if (units.temperature == TemperatureUnit.FAHRENHEIT) "°F" else "°C"
@@ -42,7 +42,7 @@ class UnitFormatter(private val units: DisplayUnits) {
         val low = windValue(lowMetersPerSecond)
         val high = highMetersPerSecond?.let(::windValue)
         val suffix = if (units.wind == WindUnit.MILES_PER_HOUR) "mph" else "km/h"
-        return if (high == null || abs(high - low) < 0.5) {
+        return if (high == null || abs(high - low) < Measures.WIND_DISPLAY_GAP) {
             "${low.roundToInt()} $suffix"
         } else {
             "${low.roundToInt()} to ${high.roundToInt()} $suffix"
@@ -50,21 +50,21 @@ class UnitFormatter(private val units: DisplayUnits) {
     }
 
     fun precipitation(millimeters: Double): String = when (units.precipitation) {
-        PrecipitationUnit.INCHES -> "${formatAmount(millimeters / 25.4)} in"
+        PrecipitationUnit.INCHES -> "${formatAmount(millimeters / Measures.MILLIMETERS_PER_INCH)} in"
         PrecipitationUnit.MILLIMETERS -> "${formatAmount(millimeters)} mm"
     }
 
     private fun temperatureNumber(celsius: Double): Int {
         val value = when (units.temperature) {
-            TemperatureUnit.FAHRENHEIT -> celsius * 9.0 / 5.0 + 32.0
+            TemperatureUnit.FAHRENHEIT -> celsius * Measures.FAHRENHEIT_PER_CELSIUS + Measures.FAHRENHEIT_OFFSET
             TemperatureUnit.CELSIUS -> celsius
         }
         return value.roundToInt()
     }
 
     private fun windValue(metersPerSecond: Double): Double = when (units.wind) {
-        WindUnit.MILES_PER_HOUR -> metersPerSecond * METERS_PER_SECOND_TO_MPH
-        WindUnit.KILOMETERS_PER_HOUR -> metersPerSecond * METERS_PER_SECOND_TO_KMH
+        WindUnit.MILES_PER_HOUR -> metersPerSecond * Measures.MPH_PER_METER_PER_SECOND
+        WindUnit.KILOMETERS_PER_HOUR -> metersPerSecond * Measures.KMH_PER_METER_PER_SECOND
     }
 
     private fun formatAmount(value: Double): String {
@@ -76,8 +76,4 @@ class UnitFormatter(private val units: DisplayUnits) {
         }
     }
 
-    private companion object {
-        const val METERS_PER_SECOND_TO_MPH = 2.2369362920544
-        const val METERS_PER_SECOND_TO_KMH = 3.6
-    }
 }

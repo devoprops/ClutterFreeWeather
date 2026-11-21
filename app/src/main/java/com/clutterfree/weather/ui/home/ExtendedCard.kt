@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,22 +32,26 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.clutterfree.weather.R
+import com.clutterfree.weather.ui.DateFormats
+import androidx.compose.ui.unit.Dp
+import com.clutterfree.weather.ui.theme.Dimens
+import com.clutterfree.weather.ui.theme.WeatherColors
+import com.clutterfree.weather.weather.AppConfig
+import com.clutterfree.weather.weather.Measures
 import com.clutterfree.weather.weather.CivilDay
 import com.clutterfree.weather.weather.DisplayUnits
 import com.clutterfree.weather.weather.ForecastPeriod
 import com.clutterfree.weather.weather.HomeSettings
 import com.clutterfree.weather.weather.UnitFormatter
 import com.clutterfree.weather.weather.civilDays
+import com.clutterfree.weather.weather.forecastTemperatureCenter
 import com.clutterfree.weather.weather.sunTimes
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 @Composable
 fun ExtendedCard(
@@ -57,17 +62,28 @@ fun ExtendedCard(
     longitude: Double,
     units: DisplayUnits,
     settings: HomeSettings,
+    now: Instant,
+    showTitle: Boolean,
+    plotHeight: Dp,
+    vertical: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val days = civilDays(dayNight, hourly, zone)
+    val today = now.atZone(zone).toLocalDate()
+    val days = civilDays(dayNight, hourly, zone).filter { !it.date.isBefore(today) }
     if (days.isEmpty()) return
     val formatter = UnitFormatter(units)
     val missing = stringResource(R.string.missing)
     val scroll = rememberScrollState()
-    val visible = settings.extendedVisibleDays.coerceIn(1, 7).coerceAtMost(days.size)
+    val visible = settings.extendedVisibleDays
+        .coerceIn(AppConfig.EXTENDED_DAY_MIN, AppConfig.EXTENDED_DAY_MAX)
+        .coerceAtMost(days.size)
+    val temperatureCenter = forecastTemperatureCenter(
+        days.flatMap { listOfNotNull(it.highCelsius, it.lowCelsius) },
+    )
     val dayIndex = days.withIndex().associate { it.value.date to it.index }
     var pinned by rememberSaveable { mutableStateOf<String?>(null) }
-    var scrubber by rememberSaveable { mutableStateOf(0f) }
+    var moved by rememberSaveable { mutableStateOf(false) }
+    var savedFraction by rememberSaveable { mutableStateOf(0f) }
     LaunchedEffect(scroll) {
         snapshotFlow { scroll.isScrollInProgress }
             .distinctUntilChanged()
@@ -75,51 +91,94 @@ fun ExtendedCard(
     }
 
     ForecastCard(modifier) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = stringResource(R.string.extended), style = MaterialTheme.typography.titleMedium)
+        Column(Modifier.padding(Dimens.cardPadding), verticalArrangement = Arrangement.spacedBy(Dimens.cardGap)) {
+            if (showTitle) {
+                Text(text = stringResource(R.string.extended), style = MaterialTheme.typography.titleMedium)
+            }
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val pad = 8.dp
-                val innerPx = constraints.maxWidth - with(LocalDensity.current) { (pad * 2).roundToPx() }
-                val boxPx = innerPx / visible.toFloat()
-                val boxDp = with(LocalDensity.current) { boxPx.toDp() }
+                val pad = Dimens.graphPadding
+                val density = LocalDensity.current
+                val lengthPx = if (vertical) {
+                    with(density) { plotHeight.toPx() }
+                } else {
+                    constraints.maxWidth - with(density) { (pad * 2).toPx() }
+                }
+                val boxPx = lengthPx / visible.toFloat()
+                val boxDp = with(density) { boxPx.toDp() }
                 val domainStart = if (boxPx < 1f) 0.0 else scroll.value / boxPx.toDouble()
                 val leftmost = days[(domainStart.toInt()).coerceIn(0, days.lastIndex)]
                 val pinnedDate = pinned?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
                 val detail = days.firstOrNull { it.date == pinnedDate } ?: leftmost
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SubCard {
-                        Row(Modifier.padding(pad).horizontalScroll(scroll)) {
-                        days.forEach { day ->
-                            DayBox(
-                                day = day,
-                                width = boxDp,
-                                pinned = day.date == pinnedDate,
-                                temperature = day.highCelsius?.let(formatter::temperatureCompact) ?: missing,
-                                latitude = latitude,
-                                longitude = longitude,
-                                zone = zone,
-                                onTap = { pinned = day.date.toString() },
-                            )
+                val nowX = extendedX(now, dayIndex, zone)
+                val liveFraction = if (nowX == null) {
+                    0f
+                } else {
+                    ((nowX - domainStart) / visible).toFloat().coerceIn(0f, 1f)
+                }
+                val fraction = if (moved) savedFraction else liveFraction
+                @Composable
+                fun Box(day: CivilDay, width: Dp, height: Dp) {
+                    DayBox(
+                        day = day,
+                        width = width,
+                        height = height,
+                        pinned = day.date == pinnedDate,
+                        temperature = day.highCelsius?.let(formatter::temperatureCompact) ?: missing,
+                        latitude = latitude,
+                        longitude = longitude,
+                        zone = zone,
+                        onTap = { pinned = day.date.toString() },
+                    )
+                }
+                val dayColumn: @Composable () -> Unit = {
+                    Column(
+                        Modifier
+                            .width(Dimens.verticalDayColumn)
+                            .height(plotHeight)
+                            .verticalScroll(scroll),
+                    ) {
+                        days.forEach { day -> Box(day, Dimens.verticalDayColumn, boxDp) }
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.cardGap)) {
+                    if (!vertical) {
+                        SubCard {
+                            Row(Modifier.padding(pad).horizontalScroll(scroll)) {
+                                days.forEach { day -> Box(day, boxDp, boxDp) }
+                            }
                         }
+                    } else if (!settings.extendedGraph.visible) {
+                        SubCard {
+                            androidx.compose.foundation.layout.Box(Modifier.padding(pad)) { dayColumn() }
                         }
                     }
-                    SubCard {
-                        WeatherGraph(
-                            points = hourly.map { it.toGraphPoint() },
-                            xOf = { point -> extendedX(point.time, dayIndex, zone) },
-                            domainStart = domainStart,
-                            domainEnd = domainStart + visible,
-                            nightBands = nightBands(days, zone, latitude, longitude),
-                            dayTints = days.indices.filter { it % 2 == 1 }.map { it.toDouble()..(it + 1).toDouble() },
-                            labels = emptyList(),
-                            scrubberFraction = scrubber,
-                            onScrubberFraction = { scrubber = it },
-                            settings = settings,
-                            units = units,
-                            timeAt = { x -> timeAtDay(days, zone, x) },
-                            zone = zone,
-                            modifier = Modifier.padding(pad),
-                        )
+                    if (settings.extendedGraph.visible) {
+                        SubCard {
+                            WeatherGraph(
+                                points = hourly.map { it.toGraphPoint() },
+                                xOf = { point -> extendedX(point.time, dayIndex, zone) },
+                                domainStart = domainStart,
+                                domainEnd = domainStart + visible,
+                                nightBands = nightBands(days, zone, latitude, longitude),
+                                dayTints = days.indices.filter { it % 2 == 1 }.map { it.toDouble()..(it + 1).toDouble() },
+                                labels = emptyList(),
+                                scrubberFraction = fraction,
+                                onScrubberFraction = {
+                                    moved = true
+                                    savedFraction = it
+                                },
+                                graph = settings.extendedGraph,
+                                units = units,
+                                temperatureCenterCelsius = temperatureCenter,
+                                timeAt = { x -> timeAtDay(days, zone, x) },
+                                zone = zone,
+                                pastUntil = nowX,
+                                plotHeight = plotHeight,
+                                vertical = vertical,
+                                leading = dayColumn.takeIf { vertical },
+                                modifier = Modifier.padding(pad),
+                            )
+                        }
                     }
                     SubCard {
                         DayDetail(
@@ -128,7 +187,11 @@ fun ExtendedCard(
                             latitude = latitude,
                             longitude = longitude,
                             units = units,
-                            modifier = Modifier.padding(12.dp),
+                            details = settings.details,
+                            showDate = true,
+                            showHighLow = true,
+                            isToday = detail.date == today,
+                            modifier = Modifier.padding(Dimens.cardPadding),
                         )
                     }
                 }
@@ -140,7 +203,8 @@ fun ExtendedCard(
 @Composable
 private fun DayBox(
     day: CivilDay,
-    width: androidx.compose.ui.unit.Dp,
+    width: Dp,
+    height: Dp,
     pinned: Boolean,
     temperature: String,
     latitude: Double,
@@ -148,16 +212,16 @@ private fun DayBox(
     zone: ZoneId,
     onTap: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(Dimens.dayCorner)
     val border = if (pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
     val iconPeriod = day.daytime ?: day.nighttime
     Box(
         Modifier
             .width(width)
-            .height(width)
-            .padding(1.dp)
+            .height(height)
+            .padding(Dimens.hairline)
             .clip(shape)
-            .border(if (pinned) 2.dp else 1.dp, border, shape)
+            .border(if (pinned) Dimens.emphasisBorder else Dimens.hairline, border, shape)
             .clickable(onClick = onTap),
     ) {
         WeatherIcon(
@@ -167,31 +231,29 @@ private fun DayBox(
             longitude = longitude,
             zone = zone,
             contentDescription = iconPeriod?.shortForecast,
-            modifier = Modifier.fillMaxSize().padding(2.dp),
+            modifier = Modifier.fillMaxSize().padding(Dimens.iconInset),
         )
         Text(
-            text = day.date.format(DAY_CARD),
-            modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 2.dp),
-            color = iconLabelColor,
+            text = day.date.format(DateFormats.dayCard),
+            modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = Dimens.iconInset),
+            color = WeatherColors.iconLabel,
             style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center,
             maxLines = 1,
             softWrap = false,
             autoSize = TextAutoSize.StepBased(
-                minFontSize = 10.sp,
+                minFontSize = Dimens.minAutoSize,
                 maxFontSize = MaterialTheme.typography.titleMedium.fontSize,
             ),
         )
         Text(
             text = temperature,
             modifier = Modifier.align(Alignment.BottomCenter),
-            color = iconLabelColor,
+            color = WeatherColors.iconLabel,
             style = MaterialTheme.typography.titleMedium,
         )
     }
 }
-
-private val DAY_CARD = DateTimeFormatter.ofPattern("EEE MMM d", Locale.US)
 
 private fun extendedX(
     time: java.time.Instant,
@@ -201,7 +263,7 @@ private fun extendedX(
     val date = time.atZone(zone).toLocalDate()
     val index = dayIndex[date] ?: return null
     val start = date.atStartOfDay(zone).toInstant()
-    val fraction = Duration.between(start, time).seconds / 86_400.0
+    val fraction = Duration.between(start, time).seconds / Measures.SECONDS_PER_DAY
     return index + fraction.coerceIn(0.0, 1.0)
 }
 
@@ -209,7 +271,7 @@ private fun timeAtDay(days: List<CivilDay>, zone: ZoneId, x: Double): java.time.
     val index = x.toInt().coerceIn(0, days.lastIndex)
     val fraction = (x - index).coerceIn(0.0, 1.0)
     val start = days[index].date.atStartOfDay(zone).toInstant()
-    return start.plusMillis((fraction * 86_400_000.0).toLong())
+    return start.plusMillis((fraction * Measures.MILLIS_PER_DAY).toLong())
 }
 
 private fun nightBands(
@@ -225,7 +287,8 @@ private fun nightBands(
             add(index.toDouble()..(index + 1).toDouble())
         } else {
             fun position(instant: java.time.Instant): Double {
-                val fraction = Duration.between(start, instant).seconds.coerceIn(0, 86_400) / 86_400.0
+                val fraction = Duration.between(start, instant).seconds.coerceIn(0, Measures.SECONDS_PER_DAY.toLong()) /
+                    Measures.SECONDS_PER_DAY
                 return index + fraction
             }
             add(index.toDouble()..position(sun.sunrise))

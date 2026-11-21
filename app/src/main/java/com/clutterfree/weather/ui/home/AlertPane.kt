@@ -14,8 +14,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.clutterfree.weather.R
+import com.clutterfree.weather.ui.theme.Dimens
 import com.clutterfree.weather.weather.WeatherAlert
 import com.clutterfree.weather.weather.rankedAlerts
 
@@ -29,7 +29,7 @@ fun AlertBanner(alerts: List<WeatherAlert>, onClick: () -> Unit, modifier: Modif
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = colors.first, contentColor = colors.second),
     ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(Modifier.padding(horizontal = Dimens.screenPadding, vertical = Dimens.cardPadding)) {
             Text(
                 text = top.headline ?: top.event ?: stringResource(R.string.weather_alert),
                 style = MaterialTheme.typography.titleMedium,
@@ -51,18 +51,18 @@ fun AlertList(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(Dimens.cardGap)) {
         BackButton(onBack)
         rankedAlerts(alerts).forEach { alert ->
             Card(
                 onClick = { onSelect(alert.id) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 48.dp),
+                    .heightIn(min = Dimens.touchTarget),
             ) {
                 Text(
                     text = alert.headline ?: alert.event ?: stringResource(R.string.weather_alert),
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(Dimens.screenPadding),
                     style = MaterialTheme.typography.titleMedium,
                 )
             }
@@ -75,7 +75,7 @@ fun AlertDetail(alert: WeatherAlert, onBack: () -> Unit, modifier: Modifier = Mo
     Column(modifier) {
         BackButton(onBack)
         SelectionContainer {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.sectionGap)) {
                 Text(
                     text = alert.headline ?: alert.event ?: stringResource(R.string.weather_alert),
                     style = MaterialTheme.typography.titleLarge,
@@ -92,7 +92,7 @@ fun AlertDetail(alert: WeatherAlert, onBack: () -> Unit, modifier: Modifier = Mo
 
 @Composable
 private fun BackButton(onBack: () -> Unit) {
-    TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
+    TextButton(onClick = onBack, modifier = Modifier.heightIn(min = Dimens.touchTarget)) {
         Text(stringResource(R.string.back))
     }
 }

@@ -1,10 +1,15 @@
 package com.clutterfree.weather.data
 
+import com.clutterfree.weather.weather.CardTheme
+import com.clutterfree.weather.weather.DetailItem
 import com.clutterfree.weather.weather.ForecastPeriod
+import com.clutterfree.weather.weather.GraphSettings
 import com.clutterfree.weather.weather.HomeCard
 import com.clutterfree.weather.weather.HomeSettings
+import com.clutterfree.weather.weather.Place
 import com.clutterfree.weather.weather.WeatherSnapshot
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -42,9 +47,11 @@ class WeatherStoreTest {
         )
         store.writeHome(
             HomeSettings(
-                showHumidity = true,
+                hourlyGraph = GraphSettings(visible = false, humidity = true),
+                details = setOf(DetailItem.SUNRISE),
                 extendedVisibleDays = 4,
                 radarMiles = 40,
+                cardTheme = CardTheme.WEATHER,
             ),
         )
 
@@ -53,10 +60,80 @@ class WeatherStoreTest {
         assertEquals(10.0, stored.dewpointCelsius!!, 0.01)
         assertEquals("Partly cloudy, with a high near 68.", stored.detailedForecast)
         val home = store.readHome()
-        assertTrue(home.showHumidity)
+        assertFalse(home.hourlyGraph.visible)
+        assertTrue(home.hourlyGraph.humidity)
+        assertTrue(home.todayGraph.visible)
+        assertEquals(setOf(DetailItem.SUNRISE), home.details)
         assertEquals(4, home.extendedVisibleDays)
         assertEquals(40, home.radarMiles)
+        assertEquals(CardTheme.WEATHER, home.cardTheme)
         assertEquals(HomeCard.TODAY, home.cardOrder.first())
+    }
+
+    @Test
+    fun olderGraphFlagsApplyToEveryCard() {
+        val directory = Files.createTempDirectory("weather-store-flags").toFile()
+        java.io.File(directory, "place.json").writeText(
+            """{"home": {"showHumidity": true, "showRainChance": false}, "place": null}""",
+        )
+
+        val home = WeatherStore(directory).readHome()
+        listOf(home.todayGraph, home.hourlyGraph, home.extendedGraph).forEach { graph ->
+            assertTrue(graph.humidity)
+            assertFalse(graph.rainChance)
+        }
+        assertEquals(CardTheme.SEASONAL, home.cardTheme)
+    }
+
+    @Test
+    fun savedPlacesStayUntilRemovedAndTheCurrentOneCannotBeRemoved() {
+        val store = WeatherStore(Files.createTempDirectory("weather-store-saved").toFile())
+        store.writePlace(place("Chicago, IL"))
+        store.writePlace(place("Huntsville, AL"))
+
+        assertEquals(listOf("Chicago, IL", "Huntsville, AL"), store.readSaved().map { it.displayName })
+        store.removeSaved("Huntsville, AL")
+        assertEquals(2, store.readSaved().size)
+        store.removeSaved("Chicago, IL")
+        assertEquals(listOf("Huntsville, AL"), store.readSaved().map { it.displayName })
+    }
+
+    @Test
+    fun savedPlacesKeepTheChosenOrder() {
+        val store = WeatherStore(Files.createTempDirectory("weather-store-order").toFile())
+        store.writePlace(place("Chicago, IL"))
+        store.writePlace(place("Huntsville, AL"))
+        store.writePlace(place("Denver, CO"))
+
+        store.reorderSaved(listOf("Denver, CO", "Chicago, IL", "Huntsville, AL"))
+        assertEquals(listOf("Denver, CO", "Chicago, IL", "Huntsville, AL"), store.readSaved().map { it.displayName })
+    }
+
+    @Test
+    fun detailItemsAddedLaterAreOnForOlderFilesButStayOffOnceChosen() {
+        val directory = Files.createTempDirectory("weather-store-details").toFile()
+        java.io.File(directory, "place.json").writeText(
+            """{"home": {"details": ["SUNRISE"]}, "place": null}""",
+        )
+        val store = WeatherStore(directory)
+        val upgraded = store.readHome().details
+        assertEquals(setOf(DetailItem.SUNRISE, DetailItem.CURRENT_TEXT, DetailItem.WIND_CHILL_HEAT_INDEX), upgraded)
+
+        store.writeHome(store.readHome().copy(details = setOf(DetailItem.SUNRISE)))
+        assertEquals(setOf(DetailItem.SUNRISE), store.readHome().details)
+    }
+
+    @Test
+    fun olderPlaceFileListsTheCurrentPlaceAsSaved() {
+        val directory = Files.createTempDirectory("weather-store-legacy").toFile()
+        val store = WeatherStore(directory)
+        store.writePlace(place("Chicago, IL"))
+        val file = java.io.File(directory, "place.json")
+        val json = org.json.JSONObject(file.readText())
+        json.remove("saved")
+        file.writeText(json.toString())
+
+        assertEquals(listOf("Chicago, IL"), store.readSaved().map { it.displayName })
     }
 
     @Test
@@ -92,4 +169,18 @@ class WeatherStoreTest {
         assertNull(period.detailedForecast)
         assertEquals(3, store.readHome().extendedVisibleDays)
     }
+
+    private fun place(name: String) = Place(
+        displayName = name,
+        latitude = 41.0,
+        longitude = -87.0,
+        office = "LOT",
+        gridX = 1,
+        gridY = 1,
+        timeZone = "America/Chicago",
+        forecastUrl = "https://api.weather.gov/gridpoints/LOT/1,1/forecast",
+        hourlyForecastUrl = "https://api.weather.gov/gridpoints/LOT/1,1/forecast/hourly",
+        observationStationsUrl = "https://api.weather.gov/gridpoints/LOT/1,1/stations",
+        gridResolvedAt = Instant.parse("2026-11-20T00:00:00Z"),
+    )
 }

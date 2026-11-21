@@ -5,6 +5,14 @@ interface WeatherRepository {
 
     fun selectedPlace(): Place?
 
+    fun savedPlaces(): List<Place>
+
+    fun switchPlace(displayName: String): Place?
+
+    fun removePlace(displayName: String)
+
+    fun reorderPlaces(displayNames: List<String>)
+
     fun refresh(): RefreshResult
 
     fun snapshot(): WeatherSnapshot?

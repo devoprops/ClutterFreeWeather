@@ -4,50 +4,61 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.window.core.layout.WindowSizeClass
 import com.clutterfree.weather.R
 import com.clutterfree.weather.data.UsPlace
 import com.clutterfree.weather.data.UsPlaceIndex
+import com.clutterfree.weather.ui.DateFormats
 import com.clutterfree.weather.ui.theme.ClutterFreeWeatherTheme
+import com.clutterfree.weather.ui.theme.Dimens
+import com.clutterfree.weather.ui.theme.LocalCardPalette
+import com.clutterfree.weather.ui.theme.cardPalette
+import com.clutterfree.weather.ui.radar.RadarPane
+import com.clutterfree.weather.weather.AppConfig
+import com.clutterfree.weather.weather.ChartOrientation
 import com.clutterfree.weather.weather.DisplayUnits
 import com.clutterfree.weather.weather.ForecastPeriod
 import com.clutterfree.weather.weather.HomeCard
@@ -55,6 +66,7 @@ import com.clutterfree.weather.weather.HomeSettings
 import com.clutterfree.weather.weather.LoadResult
 import com.clutterfree.weather.weather.Observation
 import com.clutterfree.weather.weather.Place
+import com.clutterfree.weather.weather.RefreshResult
 import com.clutterfree.weather.weather.SearchResult
 import com.clutterfree.weather.weather.WeatherAlert
 import com.clutterfree.weather.weather.WeatherRepository
@@ -76,16 +88,18 @@ fun HomeScreen(repository: WeatherRepository) {
     val gate = remember { Mutex() }
     val generation = remember { AtomicInteger(0) }
     var place by remember { mutableStateOf<Place?>(null) }
+    var saved by remember { mutableStateOf<List<Place>>(emptyList()) }
     var snapshot by remember { mutableStateOf<WeatherSnapshot?>(null) }
     var units by remember { mutableStateOf(DisplayUnits()) }
     var settings by remember { mutableStateOf(HomeSettings()) }
     var query by rememberSaveable { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
-    var searching by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
     var placeIndex by remember { mutableStateOf<UsPlaceIndex?>(null) }
     var showAlertList by rememberSaveable { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showCities by rememberSaveable { mutableStateOf(false) }
     var selectedAlertId by rememberSaveable { mutableStateOf<String?>(null) }
     val noMatch = stringResource(R.string.no_matching_place)
     val outside = stringResource(R.string.outside_coverage)
@@ -123,6 +137,7 @@ fun HomeScreen(repository: WeatherRepository) {
                 } else {
                     StoredHome(
                         place = repository.selectedPlace(),
+                        saved = repository.savedPlaces(),
                         snapshot = repository.snapshot(),
                         units = repository.displayUnits(),
                         settings = repository.homeSettings(),
@@ -132,10 +147,14 @@ fun HomeScreen(repository: WeatherRepository) {
         } ?: return@LaunchedEffect
         if (ticket != generation.get()) return@LaunchedEffect
         place = stored.place
+        saved = stored.saved
         snapshot = stored.snapshot
         units = stored.units
         settings = stored.settings
-        if (stored.place == null) return@LaunchedEffect
+        if (stored.place == null) {
+            showCities = true
+            return@LaunchedEffect
+        }
         refreshing = true
         val loaded = withContext(Dispatchers.IO) {
             gate.withLock {
@@ -153,9 +172,9 @@ fun HomeScreen(repository: WeatherRepository) {
     }
 
     fun selectPlace(selected: UsPlace) {
-        if (searching) return
+        if (busy) return
         val ticket = generation.incrementAndGet()
-        searching = true
+        busy = true
         refreshing = true
         scope.launch {
             val outcome = withContext(Dispatchers.IO) {
@@ -166,39 +185,112 @@ fun HomeScreen(repository: WeatherRepository) {
                         when (val result = repository.choosePlace(selected.label, selected.latitude, selected.longitude)) {
                             is SearchResult.Found -> {
                                 val loaded = repository.load()
-                                SearchOutcome.Found(result.place, loaded, repository.selectedPlace())
+                                PlaceOutcome.Found(loaded, repository.selectedPlace() ?: result.place, repository.savedPlaces())
                             }
-                            SearchResult.NoMatchingPlace -> SearchOutcome.Message(noMatch)
-                            SearchResult.OutsideCoverage -> SearchOutcome.Message(outside)
-                            is SearchResult.Failed -> SearchOutcome.Message(result.message)
+                            SearchResult.NoMatchingPlace -> PlaceOutcome.Message(noMatch)
+                            SearchResult.OutsideCoverage -> PlaceOutcome.Message(outside)
+                            is SearchResult.Failed -> PlaceOutcome.Message(result.message)
                         }
                     }
                 }
             }
             if (outcome != null && ticket == generation.get()) {
                 when (outcome) {
-                    is SearchOutcome.Found -> {
+                    is PlaceOutcome.Found -> {
                         query = ""
-                        status = null
-                        apply(outcome.loaded, outcome.selected ?: outcome.place)
+                        showCities = false
+                        saved = outcome.saved
+                        apply(outcome.loaded, outcome.selected)
                     }
-                    is SearchOutcome.Message -> status = outcome.text
+                    is PlaceOutcome.Message -> status = outcome.text
                 }
             }
             if (ticket == generation.get()) {
-                searching = false
+                busy = false
                 refreshing = false
             }
         }
     }
 
-    fun search() {
+    fun submit() {
         val selected = suggestions.firstOrNull()
         if (selected == null) {
             status = noMatch
             return
         }
         selectPlace(selected)
+    }
+
+    fun switchTo(target: Place) {
+        if (busy) return
+        if (target.displayName == place?.displayName) {
+            showCities = false
+            return
+        }
+        val ticket = generation.incrementAndGet()
+        busy = true
+        refreshing = true
+        scope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                gate.withLock {
+                    if (ticket != generation.get()) {
+                        null
+                    } else {
+                        repository.switchPlace(target.displayName)?.let {
+                            PlaceOutcome.Found(repository.load(), repository.selectedPlace() ?: it, repository.savedPlaces())
+                        }
+                    }
+                }
+            }
+            if (outcome is PlaceOutcome.Found && ticket == generation.get()) {
+                showCities = false
+                saved = outcome.saved
+                apply(outcome.loaded, outcome.selected)
+            }
+            if (ticket == generation.get()) {
+                busy = false
+                refreshing = false
+            }
+        }
+    }
+
+    fun delete(target: Place) {
+        scope.launch {
+            saved = withContext(Dispatchers.IO) {
+                gate.withLock {
+                    repository.removePlace(target.displayName)
+                    repository.savedPlaces()
+                }
+            }
+        }
+    }
+
+    fun refresh() {
+        if (busy || place == null) return
+        val ticket = generation.get()
+        refreshing = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                gate.withLock {
+                    if (ticket != generation.get()) null else repository.refresh() to repository.selectedPlace()
+                }
+            }
+            if (result != null && ticket == generation.get()) {
+                place = result.second
+                when (val refreshed = result.first) {
+                    is RefreshResult.Updated -> {
+                        snapshot = refreshed.snapshot
+                        status = null
+                    }
+                    is RefreshResult.Failed -> {
+                        snapshot = refreshed.previous ?: snapshot
+                        status = refreshed.message
+                    }
+                    RefreshResult.NoPlace -> snapshot = null
+                }
+            }
+            if (ticket == generation.get()) refreshing = false
+        }
     }
 
     fun closeAlert() {
@@ -211,8 +303,12 @@ fun HomeScreen(repository: WeatherRepository) {
     }
 
     val alertsOpen = showAlertList || selectedAlertId != null
-    BackHandler(enabled = alertsOpen || showSettings) {
-        if (alertsOpen) closeAlert() else showSettings = false
+    BackHandler(enabled = alertsOpen || showSettings || showCities) {
+        when {
+            alertsOpen -> closeAlert()
+            showSettings -> showSettings = false
+            else -> showCities = false
+        }
     }
 
     HomeContent(
@@ -221,16 +317,9 @@ fun HomeScreen(repository: WeatherRepository) {
         units = units,
         settings = settings,
         now = Instant.now(),
-        query = query,
-        onQuery = {
-            query = it
-            status = null
-        },
-        onSearch = ::search,
-        suggestions = suggestions,
-        onPick = ::selectPlace,
-        searching = searching,
+        placeIndex = placeIndex,
         refreshing = refreshing,
+        onRefresh = ::refresh,
         status = status,
         showAlertList = showAlertList,
         selectedAlertId = selectedAlertId,
@@ -255,9 +344,62 @@ fun HomeScreen(repository: WeatherRepository) {
                 }
             }
         },
+        onUnits = { updated ->
+            units = updated
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    gate.withLock { repository.setDisplayUnits(updated) }
+                }
+            }
+        },
+        onReset = {
+            settings = HomeSettings()
+            units = DisplayUnits()
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    gate.withLock {
+                        repository.setHomeSettings(HomeSettings())
+                        repository.setDisplayUnits(DisplayUnits())
+                    }
+                }
+            }
+        },
+        showCities = showCities,
+        onOpenCities = {
+            status = null
+            showCities = true
+        },
+        cities = {
+            CityPane(
+                current = place,
+                saved = saved,
+                query = query,
+                onQuery = {
+                    query = it
+                    status = null
+                },
+                suggestions = suggestions,
+                onPick = ::selectPlace,
+                onSubmit = ::submit,
+                onSwitch = ::switchTo,
+                onDelete = ::delete,
+                onReorder = { reordered ->
+                    saved = reordered
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            gate.withLock { repository.reorderPlaces(reordered.map { it.displayName }) }
+                        }
+                    }
+                },
+                busy = busy,
+                status = status,
+                onBack = { showCities = false },
+            )
+        },
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeContent(
     place: Place?,
@@ -265,13 +407,9 @@ private fun HomeContent(
     units: DisplayUnits,
     settings: HomeSettings,
     now: Instant,
-    query: String,
-    onQuery: (String) -> Unit,
-    onSearch: () -> Unit,
-    suggestions: List<UsPlace>,
-    onPick: (UsPlace) -> Unit,
-    searching: Boolean,
+    placeIndex: UsPlaceIndex?,
     refreshing: Boolean,
+    onRefresh: () -> Unit,
     status: String?,
     showAlertList: Boolean,
     selectedAlertId: String?,
@@ -282,44 +420,153 @@ private fun HomeContent(
     onOpenSettings: () -> Unit,
     onCloseSettings: () -> Unit,
     onSettings: (HomeSettings) -> Unit,
+    onUnits: (DisplayUnits) -> Unit,
+    onReset: () -> Unit,
+    showCities: Boolean,
+    onOpenCities: () -> Unit,
+    cities: @Composable () -> Unit,
 ) {
-    val wide = currentWindowAdaptiveInfoV2()
-        .windowSizeClass
-        .isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND)
+    val sizeClass = currentWindowAdaptiveInfoV2().windowSizeClass
+    val tall = sizeClass.isHeightAtLeastBreakpoint(WindowSizeClass.HEIGHT_DP_MEDIUM_LOWER_BOUND)
+    val wide = tall && sizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND)
+    val narrow = !sizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
+    val vertical = !wide && when (settings.chartOrientation) {
+        ChartOrientation.AUTO -> narrow && tall
+        ChartOrientation.HORIZONTAL -> false
+        ChartOrientation.VERTICAL -> true
+    }
     val selected = snapshot?.alerts?.firstOrNull { it.id == selectedAlertId }
-    BoxWithConstraints(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .imePadding(),
-    ) {
-        val columnWidth = if (wide) minOf(maxWidth, 720.dp) else maxWidth
-        Column(
-            Modifier
-                .width(columnWidth)
-                .fillMaxHeight()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (refreshing) {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
+    val zone = place?.let { runCatching { ZoneId.of(it.timeZone) }.getOrNull() } ?: ZoneId.systemDefault()
+    val palette = cardPalette(
+        scheme = MaterialTheme.colorScheme,
+        theme = settings.cardTheme,
+        date = now.atZone(zone).toLocalDate(),
+        iconUrl = snapshot?.observation?.iconUrl
+            ?: snapshot?.hourly?.firstOrNull { !now.isBefore(it.start) && now.isBefore(it.end) }?.iconUrl,
+    )
+    val cards = if (place != null && snapshot != null) ForecastCards(place, snapshot, units, settings, now, zone) else null
+    var selectedTab by rememberSaveable { mutableStateOf(HomeCard.TODAY.name) }
+    val cardState = rememberSaveableStateHolder()
+
+    @Composable
+    fun Top() {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.cardGap)) {
+            if (snapshot != null && snapshot.alerts.isNotEmpty()) {
+                AlertBanner(snapshot.alerts, onOpenAlerts)
             }
-            when {
-                selected != null -> AlertDetail(selected, onCloseAlerts)
-                showAlertList -> AlertList(snapshot?.alerts.orEmpty(), onSelectAlert, onCloseAlerts)
-                showSettings -> SettingsPane(settings, onSettings, onCloseSettings)
-                else -> {
-                    if (snapshot != null && snapshot.alerts.isNotEmpty()) {
-                        AlertBanner(snapshot.alerts, onOpenAlerts)
+            Header(place, snapshot?.observation, zone, onOpenCities, onOpenSettings)
+            status?.let {
+                Text(text = it, color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+
+    CompositionLocalProvider(LocalCardPalette provides palette) {
+        Box(Modifier.fillMaxSize().background(palette.page)) {
+            PullToRefreshBox(
+                isRefreshing = refreshing,
+                onRefresh = onRefresh,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .imePadding(),
+            ) {
+                val paneOpen = selected != null || showAlertList || showSettings || showCities
+                when {
+                    paneOpen -> Column(
+                        Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(Dimens.screenPadding),
+                    ) {
+                        when {
+                            selected != null -> AlertDetail(selected, onCloseAlerts)
+                            showAlertList -> AlertList(snapshot?.alerts.orEmpty(), onSelectAlert, onCloseAlerts)
+                            showSettings -> SettingsPane(
+                                settings = settings,
+                                onSettings = onSettings,
+                                units = units,
+                                onUnits = onUnits,
+                                onReset = onReset,
+                                onBack = onCloseSettings,
+                                preview = cards?.let { forecast ->
+                                    { forecast.Card(HomeCard.TODAY, showTitle = false, plotHeight = Dimens.graphHeight, vertical = false) }
+                                },
+                            )
+                            else -> cities()
+                        }
                     }
-                    LocationBar(place, query, onQuery, onSearch, suggestions, onPick, searching, onOpenSettings)
-                    status?.let {
-                        Text(text = it, color = MaterialTheme.colorScheme.error)
+                    wide -> BoxWithConstraints(Modifier.fillMaxSize()) {
+                        val mainWidth = minOf(maxWidth * AppConfig.WIDE_MAIN_FRACTION, Dimens.homeColumnMax)
+                        Row(Modifier.fillMaxSize()) {
+                            Column(
+                                Modifier
+                                    .width(mainWidth)
+                                    .fillMaxHeight()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(Dimens.screenPadding),
+                                verticalArrangement = Arrangement.spacedBy(Dimens.sectionGap),
+                            ) {
+                                Top()
+                                cards?.let { forecast ->
+                                    (listOf(HomeCard.TODAY) + settings.cardOrder.filter { it in tabCards && it != HomeCard.RADAR })
+                                        .forEach { card ->
+                                            cardState.SaveableStateProvider(card.name) {
+                                                forecast.Card(card, showTitle = true, plotHeight = Dimens.graphHeight, vertical = false)
+                                            }
+                                        }
+                                }
+                            }
+                            if (place != null) {
+                                ForecastCard(
+                                    Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .padding(vertical = Dimens.screenPadding)
+                                        .padding(end = Dimens.screenPadding),
+                                ) {
+                                    RadarPane(place, settings.radarMiles, placeIndex, Modifier.fillMaxSize())
+                                }
+                            }
+                        }
                     }
-                    if (snapshot != null && place != null) {
-                        ForecastColumn(place, snapshot, units, settings, now)
+                    else -> Column(Modifier.fillMaxSize()) {
+                        Box(Modifier.padding(start = Dimens.screenPadding, end = Dimens.screenPadding, top = Dimens.screenPadding)) {
+                            Top()
+                        }
+                        if (place == null) return@Column
+                        val tabs = listOf(HomeCard.TODAY) + settings.cardOrder.filter { it in tabCards }
+                        val current = tabs.firstOrNull { it.name == selectedTab } ?: HomeCard.TODAY
+                        PrimaryTabRow(selectedTabIndex = tabs.indexOf(current), containerColor = palette.page) {
+                            tabs.forEach { card ->
+                                Tab(
+                                    selected = card == current,
+                                    onClick = { selectedTab = card.name },
+                                    text = { Text(stringResource(cardLabel(card)), maxLines = 1) },
+                                )
+                            }
+                        }
+                        cardState.SaveableStateProvider(current.name) {
+                            if (current == HomeCard.RADAR) {
+                                RadarPane(place, settings.radarMiles, placeIndex, Modifier.weight(1f).fillMaxWidth())
+                                return@SaveableStateProvider
+                            }
+                            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                                val plotHeight = when {
+                                    !vertical || current == HomeCard.TODAY -> Dimens.tabGraphHeight
+                                    current == HomeCard.HOURLY -> maxHeight * AppConfig.VERTICAL_HOURLY_PLOT_FRACTION
+                                    else -> maxHeight * AppConfig.VERTICAL_EXTENDED_PLOT_FRACTION
+                                }
+                                Column(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(rememberScrollState())
+                                        .padding(Dimens.screenPadding),
+                                ) {
+                                    cards?.Card(current, showTitle = false, plotHeight = plotHeight, vertical = vertical)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -328,122 +575,117 @@ private fun HomeContent(
 }
 
 @Composable
-private fun LocationBar(
+private fun Header(
     place: Place?,
-    query: String,
-    onQuery: (String) -> Unit,
-    onSearch: () -> Unit,
-    suggestions: List<UsPlace>,
-    onPick: (UsPlace) -> Unit,
-    searching: Boolean,
+    observation: Observation?,
+    zone: ZoneId,
+    onOpenCities: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = place?.displayName ?: stringResource(R.string.place_prompt),
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            TextButton(
-                onClick = onOpenSettings,
-                modifier = Modifier.heightIn(min = 48.dp),
-            ) {
-                Text(stringResource(R.string.settings))
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQuery,
-                modifier = Modifier.weight(1f),
-                label = { Text(stringResource(R.string.place_label)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-            )
-            Button(
-                onClick = onSearch,
-                enabled = query.isNotBlank() && !searching,
-                modifier = Modifier.heightIn(min = 48.dp),
-            ) {
-                Text(stringResource(R.string.search))
-            }
-        }
-        suggestions.forEach { suggestion ->
+    val changeCity = stringResource(R.string.change_city)
+    Column {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .clickable { onPick(suggestion) }
-                    .padding(horizontal = 12.dp),
+                    .weight(1f)
+                    .heightIn(min = Dimens.touchTarget)
+                    .clickable(onClickLabel = changeCity, onClick = onOpenCities),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = suggestion.label, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = place?.displayName ?: stringResource(R.string.place_prompt),
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(painter = painterResource(R.drawable.ic_expand_more), contentDescription = null)
             }
+            IconButton(onClick = onOpenSettings) {
+                Icon(painter = painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.settings))
+            }
+        }
+        val station = observation?.stationName
+        val time = observation?.observedAt?.atZone(zone)?.format(DateFormats.clock)
+        if (station != null || time != null) {
+            val missing = stringResource(R.string.missing)
+            Text(
+                text = stringResource(R.string.observed_at, station ?: missing, time ?: missing),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
 
-@Composable
-private fun ForecastColumn(
-    place: Place,
-    snapshot: WeatherSnapshot,
-    units: DisplayUnits,
-    settings: HomeSettings,
-    now: Instant,
+private class ForecastCards(
+    private val place: Place,
+    private val snapshot: WeatherSnapshot,
+    private val units: DisplayUnits,
+    private val settings: HomeSettings,
+    private val now: Instant,
+    private val zone: ZoneId,
 ) {
-    val zone = runCatching { ZoneId.of(place.timeZone) }.getOrElse { ZoneId.systemDefault() }
-    settings.cardOrder.forEach { card ->
-        androidx.compose.runtime.key(card) {
-            when (card) {
-                HomeCard.TODAY -> TodayCard(
-                    snapshot = snapshot,
-                    zone = zone,
-                    latitude = place.latitude,
-                    longitude = place.longitude,
-                    now = now,
-                    units = units,
-                    settings = settings,
-                )
-                HomeCard.HOURLY -> HourlyCard(
-                    hours = snapshot.hourly,
-                    zone = zone,
-                    latitude = place.latitude,
-                    longitude = place.longitude,
-                    units = units,
-                    settings = settings,
-                )
-                HomeCard.EXTENDED -> ExtendedCard(
-                    dayNight = snapshot.dayNight,
-                    hourly = snapshot.hourly,
-                    zone = zone,
-                    latitude = place.latitude,
-                    longitude = place.longitude,
-                    units = units,
-                    settings = settings,
-                )
-                HomeCard.RADAR -> Unit
-            }
+    @Composable
+    fun Card(card: HomeCard, showTitle: Boolean, plotHeight: Dp, vertical: Boolean) {
+        when (card) {
+            HomeCard.TODAY -> TodayCard(
+                snapshot = snapshot,
+                zone = zone,
+                latitude = place.latitude,
+                longitude = place.longitude,
+                now = now,
+                units = units,
+                settings = settings,
+                showTitle = showTitle,
+                plotHeight = plotHeight,
+            )
+            HomeCard.HOURLY -> HourlyCard(
+                hours = snapshot.hourly,
+                dayNight = snapshot.dayNight,
+                zone = zone,
+                latitude = place.latitude,
+                longitude = place.longitude,
+                units = units,
+                settings = settings,
+                now = now,
+                observation = snapshot.observation,
+                showTitle = showTitle,
+                plotHeight = plotHeight,
+                vertical = vertical,
+            )
+            HomeCard.EXTENDED -> ExtendedCard(
+                dayNight = snapshot.dayNight,
+                hourly = snapshot.hourly,
+                zone = zone,
+                latitude = place.latitude,
+                longitude = place.longitude,
+                units = units,
+                settings = settings,
+                now = now,
+                showTitle = showTitle,
+                plotHeight = plotHeight,
+                vertical = vertical,
+            )
+            HomeCard.RADAR -> Unit
         }
     }
 }
 
 private data class StoredHome(
     val place: Place?,
+    val saved: List<Place>,
     val snapshot: WeatherSnapshot?,
     val units: DisplayUnits,
     val settings: HomeSettings,
 )
 
-private sealed interface SearchOutcome {
-    data class Found(val place: Place, val loaded: LoadResult, val selected: Place?) : SearchOutcome
+private sealed interface PlaceOutcome {
+    data class Found(val loaded: LoadResult, val selected: Place, val saved: List<Place>) : PlaceOutcome
 
-    data class Message(val text: String) : SearchOutcome
+    data class Message(val text: String) : PlaceOutcome
 }
 
 @Preview(name = "Compact", widthDp = 360, heightDp = 900)
@@ -458,13 +700,9 @@ private fun HomePreview() {
             units = DisplayUnits(),
             settings = HomeSettings(),
             now = Instant.parse("2026-11-20T18:00:00Z"),
-            query = "",
-            onQuery = {},
-            onSearch = {},
-            suggestions = emptyList(),
-            onPick = {},
-            searching = false,
+            placeIndex = null,
             refreshing = false,
+            onRefresh = {},
             status = null,
             showAlertList = false,
             selectedAlertId = null,
@@ -475,6 +713,51 @@ private fun HomePreview() {
             onOpenSettings = {},
             onCloseSettings = {},
             onSettings = {},
+            onUnits = {},
+            onReset = {},
+            showCities = false,
+            onOpenCities = {},
+            cities = {},
+        )
+    }
+}
+
+@Preview(name = "Settings", widthDp = 360, heightDp = 1600)
+@Composable
+private fun SettingsPreview() {
+    ClutterFreeWeatherTheme {
+        SettingsPane(
+            settings = HomeSettings(),
+            onSettings = {},
+            units = DisplayUnits(),
+            onUnits = {},
+            onReset = {},
+            onBack = {},
+            modifier = Modifier.padding(Dimens.screenPadding),
+        )
+    }
+}
+
+@Preview(name = "Cities", widthDp = 360, heightDp = 640)
+@Composable
+private fun CitiesPreview() {
+    ClutterFreeWeatherTheme {
+        val chicago = previewPlace()
+        CityPane(
+            current = chicago,
+            saved = listOf(chicago, chicago.copy(displayName = "Huntsville, AL")),
+            query = "",
+            onQuery = {},
+            suggestions = emptyList(),
+            onPick = {},
+            onSubmit = {},
+            onSwitch = {},
+            onDelete = {},
+            onReorder = {},
+            busy = false,
+            status = null,
+            onBack = {},
+            modifier = Modifier.padding(Dimens.screenPadding),
         )
     }
 }

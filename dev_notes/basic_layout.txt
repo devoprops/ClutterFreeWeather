@@ -29,3 +29,10 @@ Also, the graphs should show some kind of bacground color delineation for import
 for extended graph, maybe altenate a background color for each day of the week. Something like that.
 
 Alerts bumps everything down for a summary banner at the top that when clicked opens the full alert. We can talk about notifications later (like alerts, rain starting soon, etc.)
+
+Chosen layout (Nov 2026, revised 21 Nov):
+Compact and medium width: header (city name opens the city panel, gear opens Settings), then tabs for Today, Hourly, Extended, and Radar. Today is first and selected at launch. Settings sets the order of the other three.
+Radar tab opens straight into the full radar: pinch zoom, pan, play/pause loop, layer chips (radar, counties, towns). Base map is bundled state and county lines plus town names drawn by the app, so it can be swapped for a tile map later.
+Expanded width with medium or taller height: no tabs. Today, Hourly, Extended stacked in the main column, Radar in a supporting pane.
+Tall, narrow windows (compact width, medium or taller height): Hourly and Extended turn vertical, time running top to bottom with the graph rotated beside it. Settings has Auto, always horizontal, and always vertical.
+First launch with no city opens the city panel.

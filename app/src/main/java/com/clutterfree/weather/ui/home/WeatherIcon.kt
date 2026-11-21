@@ -12,7 +12,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -26,6 +25,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.clutterfree.weather.R
+import com.clutterfree.weather.ui.theme.WeatherColors
+import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.MoonPhase
 import com.clutterfree.weather.weather.iconCandidates
 import com.clutterfree.weather.weather.iconDarken
@@ -74,15 +75,16 @@ fun WeatherIcon(
                 contentScale = ContentScale.Fit,
             )
             if (overlayMoon) {
-                MoonBadge(phase, Modifier.align(Alignment.TopEnd).fillMaxSize(0.36f))
+                MoonBadge(phase, Modifier.align(Alignment.TopEnd).fillMaxSize(AppConfig.MOON_BADGE_FRACTION))
             }
             if (parsed.windy) {
-                WindBadge(Modifier.align(Alignment.BottomEnd).fillMaxSize(0.4f))
+                WindBadge(Modifier.align(Alignment.BottomEnd).fillMaxSize(AppConfig.WIND_BADGE_FRACTION))
             }
         } else {
             Canvas(Modifier.fillMaxSize()) {
-                val mark = size.minDimension / 160f
-                translate((size.width - 160f * mark) / 2f, (size.height - 160f * mark) / 2f) {
+                val canvas = AppConfig.ICON_CANVAS_PX
+                val mark = size.minDimension / canvas
+                translate((size.width - canvas * mark) / 2f, (size.height - canvas * mark) / 2f) {
                     scale(mark, mark, pivot = Offset.Zero) {
                         standIn(resolvedCondition(parsed.condition), parsed.night, phase, parsed.windy)
                     }
@@ -90,7 +92,7 @@ fun WeatherIcon(
             }
         }
         if (darken) {
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.18f)))
+            Box(Modifier.fillMaxSize().background(WeatherColors.iconDarken))
         }
     }
 }
@@ -294,15 +296,13 @@ private fun DrawScope.moon(center: Offset, radius: Float, phase: MoonPhase) {
     drawCircle(MOON_SHADE, radius, center, style = Stroke(width = 2f))
 }
 
-internal val iconLabelColor = Color(0xFF1C2834)
-
-private val SUN = Color(0xFFF5C542)
-private val CLOUD = Color(0xFFD0D9E0)
-private val CLOUD_EDGE = Color(0xFF607484)
-private val RAIN = Color(0xFF3D7EDB)
-private val SNOW = Color(0xFF9FB4C4)
-private val ICE = Color(0xFF7FB4D4)
-private val BOLT = Color(0xFFF0C84A)
-private val FOG = Color(0xFFB7C3CC)
-private val MOON_LIGHT = Color(0xFFF4F0E4)
-private val MOON_SHADE = Color(0xFF243040)
+private val SUN = WeatherColors.sun
+private val CLOUD = WeatherColors.cloud
+private val CLOUD_EDGE = WeatherColors.cloudEdge
+private val RAIN = WeatherColors.standInRain
+private val SNOW = WeatherColors.snow
+private val ICE = WeatherColors.ice
+private val BOLT = WeatherColors.bolt
+private val FOG = WeatherColors.fog
+private val MOON_LIGHT = WeatherColors.moonLight
+private val MOON_SHADE = WeatherColors.moonShade

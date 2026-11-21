@@ -7,7 +7,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import com.clutterfree.weather.ui.theme.Dimens
+import com.clutterfree.weather.ui.theme.LocalCardPalette
 
 @Composable
 fun ForecastCard(
@@ -17,8 +18,10 @@ fun ForecastCard(
     Card(
         modifier = modifier,
         shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(
+            containerColor = LocalCardPalette.current?.card ?: MaterialTheme.colorScheme.surfaceContainer,
+        ),
+        border = BorderStroke(Dimens.hairline, MaterialTheme.colorScheme.outlineVariant),
         content = content,
     )
 }
@@ -31,8 +34,10 @@ fun SubCard(
     Card(
         modifier = modifier,
         shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(
+            containerColor = LocalCardPalette.current?.subcard ?: MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+        border = BorderStroke(Dimens.hairline, MaterialTheme.colorScheme.outlineVariant),
         content = content,
     )
 }

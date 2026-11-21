@@ -1,0 +1,28 @@
+---
+description: Colors, sizes, and product values live in one place.
+alwaysApply: true
+---
+
+# Constants
+
+A color, size, alpha, duration, or product limit that a person might tune belongs in one named place, and every use reads that name.
+
+- Layout dp and sp: `ui/theme/Dimens.kt`
+- Colors that are not Material roles: `ui/theme/WeatherColors.kt`
+- Counts, weights, cache age, and scale limits: `weather/AppConfig.kt`
+- Unit conversions and the length of an hour or day: `weather/Measures.kt`
+- Date patterns: `ui/DateFormats.kt`
+
+Material theme colors stay theme colors (`colorScheme`, `typography`). Do not copy them into the palette.
+
+Leave a literal in place only when it is part of one formula and has no second meaning: a sunrise coefficient, a canvas coordinate inside a single drawing function, or a `0`/`1` bound. If the same number shows up twice, name it.
+
+```kotlin
+// Bad
+Modifier.padding(12.dp)
+Color(0xFF1565C0)
+
+// Good
+Modifier.padding(Dimens.cardPadding)
+WeatherColors.rain
+```

@@ -97,13 +97,15 @@ fun sunTimes(date: LocalDate, latitude: Double, longitude: Double, zone: ZoneId)
 }
 
 fun iconDarken(time: Instant, sun: SunTimes): Boolean {
-    val morning = !time.isBefore(sun.sunrise.minus(Duration.ofHours(1))) && time.isBefore(sun.sunrise)
-    val evening = time.isAfter(sun.sunset) && !time.isAfter(sun.sunset.plus(Duration.ofHours(1)))
+    val morning = !time.isBefore(sun.sunrise.minus(Duration.ofHours(AppConfig.TWILIGHT_HOURS))) &&
+        time.isBefore(sun.sunrise)
+    val evening = time.isAfter(sun.sunset) &&
+        !time.isAfter(sun.sunset.plus(Duration.ofHours(AppConfig.TWILIGHT_HOURS)))
     return morning || evening
 }
 
 fun moonPhase(time: Instant): MoonPhase {
-    val days = (time.epochSecond - NEW_MOON_EPOCH.epochSecond) / 86_400.0
+    val days = (time.epochSecond - NEW_MOON_EPOCH.epochSecond) / Measures.SECONDS_PER_DAY
     val age = positiveModulo(days, SYNODIC_MONTH_DAYS)
     val index = (age / SYNODIC_MONTH_DAYS * 8.0).toInt().coerceIn(0, 7)
     return MoonPhase.entries[index]
@@ -130,9 +132,22 @@ fun civilDays(
     }
 }
 
-fun CivilDay.verboseForecast(): String = listOfNotNull(daytime, nighttime).mapNotNull { period ->
-    period.detailedForecast?.takeIf { it.isNotBlank() } ?: period.shortForecast?.takeIf { it.isNotBlank() }
-}.joinToString("\n\n")
+fun ForecastPeriod.narrative(): String? =
+    detailedForecast?.takeIf { it.isNotBlank() } ?: shortForecast?.takeIf { it.isNotBlank() }
+
+private val COMPASS_POINTS = listOf(
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
+)
+
+fun compassPoint(degrees: Double): String {
+    val step = Measures.DEGREES_PER_CIRCLE / COMPASS_POINTS.size
+    val normalized = ((degrees % Measures.DEGREES_PER_CIRCLE) + Measures.DEGREES_PER_CIRCLE) % Measures.DEGREES_PER_CIRCLE
+    return COMPASS_POINTS[((normalized + step / 2) / step).toInt() % COMPASS_POINTS.size]
+}
+
+fun CivilDay.verboseForecast(): String =
+    listOfNotNull(daytime?.narrative(), nighttime?.narrative()).joinToString("\n\n")
 
 fun rankedAlerts(alerts: List<WeatherAlert>): List<WeatherAlert> =
     alerts.sortedBy { alert ->
@@ -197,7 +212,7 @@ private fun humidityNearNoon(
     date: LocalDate,
     zone: ZoneId,
 ): Double? {
-    val noon = date.atTime(12, 0).atZone(zone).toInstant()
+    val noon = date.atTime(AppConfig.NOON_HOUR, 0).atZone(zone).toInstant()
     return hourly
         .asSequence()
         .filter { it.relativeHumidityPercent != null && it.start.atZone(zone).toLocalDate() == date }
@@ -245,7 +260,7 @@ private fun sunEventHours(
 }
 
 private fun utToInstant(date: LocalDate, utHours: Double): Instant {
-    val millis = (utHours * 3_600_000.0).roundToLong()
+    val millis = (utHours * Measures.MILLIS_PER_HOUR).roundToLong()
     return date.atStartOfDay().toInstant(ZoneOffset.UTC).plusMillis(millis)
 }
 

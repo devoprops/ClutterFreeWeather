@@ -1,5 +1,6 @@
 package com.clutterfree.weather.data
 
+import com.clutterfree.weather.weather.AppConfig
 import java.io.InputStream
 import java.text.Normalizer
 
@@ -14,7 +15,13 @@ data class UsPlace(
 }
 
 class UsPlaceIndex(private val places: List<UsPlace>) {
-    fun suggest(query: String, limit: Int = 8): List<UsPlace> {
+    /** Places inside the box, largest land area first. */
+    fun within(minLatitude: Double, maxLatitude: Double, minLongitude: Double, maxLongitude: Double): Sequence<UsPlace> =
+        places.asSequence().filter {
+            it.latitude in minLatitude..maxLatitude && it.longitude in minLongitude..maxLongitude
+        }
+
+    fun suggest(query: String, limit: Int = AppConfig.PLACE_SUGGESTIONS): List<UsPlace> {
         val parsed = parseQuery(query) ?: return emptyList()
         val matches = ArrayList<UsPlace>(limit)
         for (place in places) {

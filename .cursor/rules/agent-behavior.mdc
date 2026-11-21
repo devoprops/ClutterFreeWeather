@@ -16,7 +16,9 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 
 ## Simplicity
 
+
 - No features beyond what was asked. If something else might help, ask first.
+- Do make recommendations though. I want innovation and suggestions, just executed with permission.
 - No abstractions for single-use code.
 - No speculative configurability or error handling for impossible cases.
 - No new dependency without asking.

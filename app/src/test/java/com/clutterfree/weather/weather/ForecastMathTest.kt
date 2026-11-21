@@ -148,6 +148,14 @@ class ForecastMathTest {
         detailedForecast = "High near ${celsius.toInt()}.",
     )
 
+    @Test
+    fun compassPointRoundsToSixteenDirections() {
+        assertEquals("N", compassPoint(0.0))
+        assertEquals("N", compassPoint(355.0))
+        assertEquals("ESE", compassPoint(112.5))
+        assertEquals("W", compassPoint(-90.0))
+    }
+
     private fun alert(id: String, severity: String) = WeatherAlert(
         id = id,
         event = severity,
