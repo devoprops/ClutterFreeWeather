@@ -12,16 +12,17 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.clutterfree.weather"
+        applicationId = "com.devoprop.clutterfreeweather"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "0.1.1"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

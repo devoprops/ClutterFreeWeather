@@ -1,1 +1,1 @@
-# Release minify is off until the app has code worth shrinking.
+# Stored settings read enums back with valueOf; the default optimize rules keep values() and valueOf.
