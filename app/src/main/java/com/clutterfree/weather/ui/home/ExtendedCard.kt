@@ -53,6 +53,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
+/** The Daily card. See [com.clutterfree.weather.weather.HomeCard.EXTENDED]. */
 @Composable
 fun ExtendedCard(
     dayNight: List<ForecastPeriod>,

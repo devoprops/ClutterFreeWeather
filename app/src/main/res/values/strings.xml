@@ -13,7 +13,7 @@
     <string name="observed_at">%1$s · %2$s</string>
     <string name="today">Today</string>
     <string name="hourly">Hourly</string>
-    <string name="extended">Extended</string>
+    <string name="extended">Daily</string>
     <string name="high_low">%1$s / %2$s</string>
     <string name="missing">—</string>
     <string name="detail_current">Current: %1$s</string>
@@ -63,7 +63,7 @@
     <string name="detail_item_low">Low</string>
     <string name="detail_item_humidity">Humidity</string>
     <string name="detail_item_wind">Wind</string>
-    <string name="settings_extended_days">Extended days in view</string>
+    <string name="settings_extended_days">Days in view on Daily</string>
     <string name="fewer_days">Fewer days</string>
     <string name="more_days">More days</string>
     <string name="minus">−</string>
@@ -80,7 +80,7 @@
     <string name="radar_credit">Radar: Iowa Environmental Mesonet. Boundaries: US Census Bureau via us-atlas.</string>
     <string name="settings_radar_miles">Radar starting distance</string>
     <string name="radar_miles">%1$d mi</string>
-    <string name="settings_chart_orientation">Hourly and Extended layout</string>
+    <string name="settings_chart_orientation">Hourly and Daily layout</string>
     <string name="orientation_auto">Auto (vertical on tall, narrow screens)</string>
     <string name="orientation_horizontal">Always horizontal</string>
     <string name="orientation_vertical">Always vertical</string>

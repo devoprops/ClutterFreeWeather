@@ -26,9 +26,12 @@ data class GraphSettings(
     val dewpoint: Boolean = false,
 )
 
+/** Names are stored in settings files, so they stay fixed when the on-screen label changes. */
 enum class HomeCard {
     TODAY,
     HOURLY,
+
+    /** The Daily card. "Extended" in code and stored settings means Daily everywhere. */
     EXTENDED,
     RADAR,
 }

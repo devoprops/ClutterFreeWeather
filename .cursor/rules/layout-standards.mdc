@@ -13,7 +13,7 @@ Width: compact under 600dp, medium under 840dp, expanded under 1200dp, large und
 
 Play requires Tier 3 in April 2027: fill the window, no letterboxing, and keep scroll, text, and playback across rotation, fold, and resize. Build to Tier 2.
 
-The home screen follows `dev_notes/basic_layout.txt`. On compact and medium width, a tab row holds Today, Hourly, Extended, and Radar. Today is first and selected at launch; the other three follow the order set in Settings. On a tall, narrow window, Hourly and Extended may run vertically per the orientation setting. On expanded width, drop the tabs: stack the cards in the main column and put Radar in a supporting pane so the cards are not stretched across the window. Do not add a bottom navigation bar. There is one home, not a destination per card. Settings and the city panel open from the header.
+The home screen follows `dev_notes/basic_layout.txt`. On compact and medium width, a tab row holds Today, Hourly, Daily, and Radar. Today is first and selected at launch; the other three follow the order set in Settings. On a tall, narrow window, Hourly and Daily may run vertically per the orientation setting. On expanded width, drop the tabs: stack the cards in the main column and put Radar in a supporting pane so the cards are not stretched across the window. Do not add a bottom navigation bar. There is one home, not a destination per card. Settings and the city panel open from the header.
 
 ## Do not
 
