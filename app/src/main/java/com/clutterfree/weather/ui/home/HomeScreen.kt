@@ -1,5 +1,6 @@
 package com.clutterfree.weather.ui.home
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,7 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.window.core.layout.WindowSizeClass
-import com.clutterfree.weather.R
+import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.data.UsPlace
 import com.clutterfree.weather.data.UsPlaceIndex
 import com.clutterfree.weather.ui.DateFormats
@@ -461,7 +463,10 @@ private fun HomeContent(
         }
     }
 
-    CompositionLocalProvider(LocalCardPalette provides palette) {
+    CompositionLocalProvider(
+        LocalCardPalette provides palette,
+        LocalContentColor provides MaterialTheme.colorScheme.onSurface,
+    ) {
         Box(Modifier.fillMaxSize().background(palette.page)) {
             PullToRefreshBox(
                 isRefreshing = refreshing,
@@ -542,7 +547,14 @@ private fun HomeContent(
                                 Tab(
                                     selected = card == current,
                                     onClick = { selectedTab = card.name },
-                                    text = { Text(stringResource(cardLabel(card)), maxLines = 1) },
+                                    text = {
+                                        Text(
+                                            stringResource(cardLabel(card)),
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    },
                                 )
                             }
                         }
@@ -689,6 +701,7 @@ private sealed interface PlaceOutcome {
 }
 
 @Preview(name = "Compact", widthDp = 360, heightDp = 900)
+@Preview(name = "Compact dark", widthDp = 360, heightDp = 900, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Preview(name = "Medium", widthDp = 700, heightDp = 900)
 @Preview(name = "Expanded", widthDp = 1000, heightDp = 900)
 @Composable

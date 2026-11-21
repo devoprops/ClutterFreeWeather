@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,13 +20,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import com.clutterfree.weather.R
+import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.ui.DateFormats
 import com.clutterfree.weather.ui.theme.Dimens
-import com.clutterfree.weather.ui.theme.WeatherColors
 import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.CivilDay
 import com.clutterfree.weather.weather.DisplayUnits
@@ -95,69 +95,93 @@ fun TodayCard(
                 Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(Dimens.cardGap),
             ) {
-                SubCard(Modifier.weight(AppConfig.TODAY_ICON_WEIGHT).fillMaxHeight()) {
-                    Box(Modifier.fillMaxSize().padding(Dimens.iconInset)) {
-                        Text(
-                            text = date.format(DateFormats.dayCard),
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .fillMaxWidth()
-                                .padding(horizontal = Dimens.iconInset),
-                            color = WeatherColors.iconLabel,
-                            style = MaterialTheme.typography.titleSmall,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            softWrap = false,
-                            autoSize = TextAutoSize.StepBased(
-                                minFontSize = Dimens.minAutoSize,
-                                maxFontSize = MaterialTheme.typography.titleSmall.fontSize,
-                            ),
-                        )
-                        WeatherIcon(
-                            iconUrl = iconUrl,
-                            at = iconAt,
-                            latitude = latitude,
-                            longitude = longitude,
-                            zone = zone,
-                            contentDescription = description,
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .padding(top = Dimens.dateLane)
-                                .aspectRatio(1f),
-                        )
-                        Row(
-                            Modifier
-                                .align(Alignment.BottomStart)
-                                .fillMaxWidth()
-                                .padding(horizontal = Dimens.tightGap, vertical = Dimens.iconInset),
-                            verticalAlignment = Alignment.Bottom,
+                val largeText = LocalDensity.current.fontScale >= AppConfig.LARGE_FONT_SCALE
+                SubCard(
+                    Modifier.weight(AppConfig.TODAY_ICON_WEIGHT).then(
+                        if (largeText) Modifier else Modifier.fillMaxHeight(),
+                    ),
+                ) {
+                    if (largeText) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(Dimens.cardPadding),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(Dimens.tightGap),
                         ) {
                             Text(
+                                text = date.format(DateFormats.dayCard),
+                                style = MaterialTheme.typography.titleSmall,
+                                textAlign = TextAlign.Center,
+                            )
+                            WeatherIcon(
+                                iconUrl = iconUrl,
+                                at = iconAt,
+                                latitude = latitude,
+                                longitude = longitude,
+                                zone = zone,
+                                contentDescription = description,
+                                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                            )
+                            Text(
                                 text = temperature?.let(formatter::temperatureCompact) ?: missing,
-                                modifier = Modifier.weight(AppConfig.TODAY_TEMPERATURE_WEIGHT),
-                                color = WeatherColors.iconLabel,
                                 style = MaterialTheme.typography.titleLarge,
-                                maxLines = 1,
-                                softWrap = false,
-                                autoSize = TextAutoSize.StepBased(
-                                    minFontSize = Dimens.minAutoSize,
-                                    maxFontSize = MaterialTheme.typography.titleLarge.fontSize,
-                                ),
+                                textAlign = TextAlign.Center,
                             )
                             Text(
                                 text = stringResource(R.string.high_low, high, low),
-                                modifier = Modifier
-                                    .weight(AppConfig.TODAY_HIGH_LOW_WEIGHT)
-                                    .padding(start = Dimens.tightGap, bottom = Dimens.iconInset),
-                                color = WeatherColors.iconLabel,
                                 style = MaterialTheme.typography.titleSmall,
-                                maxLines = 1,
-                                softWrap = false,
-                                autoSize = TextAutoSize.StepBased(
-                                    minFontSize = Dimens.minAutoSize,
-                                    maxFontSize = MaterialTheme.typography.titleSmall.fontSize,
-                                ),
+                                textAlign = TextAlign.Center,
                             )
+                        }
+                    } else {
+                        Box(Modifier.fillMaxSize().padding(Dimens.iconInset)) {
+                            Text(
+                                text = date.format(DateFormats.dayCard),
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = Dimens.iconInset),
+                                style = MaterialTheme.typography.titleSmall,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            WeatherIcon(
+                                iconUrl = iconUrl,
+                                at = iconAt,
+                                latitude = latitude,
+                                longitude = longitude,
+                                zone = zone,
+                                contentDescription = description,
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .padding(top = Dimens.dateLane)
+                                    .aspectRatio(1f),
+                            )
+                            Row(
+                                Modifier
+                                    .align(Alignment.BottomStart)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = Dimens.tightGap, vertical = Dimens.iconInset),
+                                verticalAlignment = Alignment.Bottom,
+                            ) {
+                                Text(
+                                    text = temperature?.let(formatter::temperatureCompact) ?: missing,
+                                    modifier = Modifier.weight(AppConfig.TODAY_TEMPERATURE_WEIGHT),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = stringResource(R.string.high_low, high, low),
+                                    modifier = Modifier
+                                        .weight(AppConfig.TODAY_HIGH_LOW_WEIGHT)
+                                        .padding(start = Dimens.tightGap, bottom = Dimens.iconInset),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                 }

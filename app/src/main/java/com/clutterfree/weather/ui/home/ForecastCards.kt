@@ -20,6 +20,7 @@ fun ForecastCard(
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = LocalCardPalette.current?.card ?: MaterialTheme.colorScheme.surfaceContainer,
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         border = BorderStroke(Dimens.hairline, MaterialTheme.colorScheme.outlineVariant),
         content = content,
@@ -36,6 +37,7 @@ fun SubCard(
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = LocalCardPalette.current?.subcard ?: MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         border = BorderStroke(Dimens.hairline, MaterialTheme.colorScheme.outlineVariant),
         content = content,

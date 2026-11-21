@@ -14,6 +14,9 @@ object AppConfig {
     const val DETAIL_COLUMNS = 2
     const val NOON_HOUR = 12
     const val TWILIGHT_HOURS = 1L
+    /** Font scale where overlaid labels give way to a stacked layout. 1.3 is the system's Large setting. */
+    const val LARGE_FONT_SCALE = 1.3f
+    const val AXIS_LABEL_EM = 4
     const val TODAY_ICON_WEIGHT = 0.36f
     const val TODAY_GRAPH_WEIGHT = 0.64f
     const val TODAY_TEMPERATURE_WEIGHT = 1.2f

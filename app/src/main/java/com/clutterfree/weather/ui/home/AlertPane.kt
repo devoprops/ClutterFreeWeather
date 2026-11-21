@@ -14,7 +14,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import com.clutterfree.weather.R
+import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.ui.theme.Dimens
 import com.clutterfree.weather.weather.WeatherAlert
 import com.clutterfree.weather.weather.rankedAlerts

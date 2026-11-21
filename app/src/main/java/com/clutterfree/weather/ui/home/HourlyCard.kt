@@ -2,7 +2,6 @@ package com.clutterfree.weather.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -12,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -32,12 +32,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import com.clutterfree.weather.R
+import androidx.compose.ui.text.style.TextOverflow
+import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.ui.DateFormats
 import androidx.compose.ui.unit.Dp
 import com.clutterfree.weather.ui.theme.Dimens
+import com.clutterfree.weather.ui.theme.scaledHeight
+import com.clutterfree.weather.ui.theme.scaledWidth
 import com.clutterfree.weather.ui.theme.LocalCardPalette
-import com.clutterfree.weather.ui.theme.WeatherColors
 import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.DisplayUnits
 import com.clutterfree.weather.weather.ForecastPeriod
@@ -110,9 +112,12 @@ fun HourlyCard(
                 )
                 Text(
                     text = period.temperatureCelsius?.let(formatter::temperatureCompact) ?: missing,
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                    color = WeatherColors.iconLabel,
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
                     style = MaterialTheme.typography.labelLarge,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -125,17 +130,20 @@ fun HourlyCard(
             }
             if (vertical) {
                 val density = LocalDensity.current
+                val hourStyle = MaterialTheme.typography.labelLarge
+                val dayStyle = MaterialTheme.typography.labelMedium
+                val minRow = maxOf(Dimens.verticalHourRow, dayStyle.scaledHeight(1) + hourStyle.scaledHeight(1))
                 val heightPx = with(density) { plotHeight.toPx() }
-                val visible = (heightPx / with(density) { Dimens.verticalHourRow.toPx() }).toInt()
-                    .coerceIn(1, upcoming.size)
+                val visible = (heightPx / with(density) { minRow.toPx() }).toInt().coerceIn(1, upcoming.size)
                 val rowPx = heightPx / visible
                 val rowDp = with(density) { rowPx.toDp() }
+                val columnWidth = maxOf(Dimens.verticalHourColumn, hourStyle.scaledWidth(6) + rowDp)
                 val domainStart = if (rowPx < 1f) 0.0 else scroll.value / rowPx.toDouble()
                 val firstOfDay = runs.runningFold(0) { start, run -> start + run.count }.toSet()
                 val rows: @Composable () -> Unit = {
                     Column(
                         Modifier
-                            .width(Dimens.verticalHourColumn)
+                            .width(columnWidth)
                             .height(plotHeight)
                             .verticalScroll(scroll),
                     ) {
@@ -151,12 +159,16 @@ fun HourlyCard(
                                             style = MaterialTheme.typography.labelMedium,
                                             fontWeight = FontWeight.SemiBold,
                                             maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
                                         )
                                     }
                                     Text(
                                         text = period.start.atZone(zone).format(DateFormats.hour),
                                         style = MaterialTheme.typography.labelLarge,
                                         maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                 }
                                 HourIcon(index, period, Modifier.width(rowDp).height(rowDp))
@@ -195,12 +207,18 @@ fun HourlyCard(
                 }
                 return@Column
             }
-            val visible = minOf(AppConfig.HOURLY_VISIBLE_HOURS, upcoming.size)
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val pad = Dimens.graphPadding
-                val innerPx = constraints.maxWidth - with(LocalDensity.current) { (pad * 2).roundToPx() }
+                val density = LocalDensity.current
+                val innerPx = constraints.maxWidth - with(density) { (pad * 2).roundToPx() }
+                val minBoxPx = with(density) { MaterialTheme.typography.labelLarge.scaledHeight(2).toPx() }
+                val visible = minOf(
+                    AppConfig.HOURLY_VISIBLE_HOURS,
+                    upcoming.size,
+                    (innerPx / minBoxPx).toInt().coerceAtLeast(1),
+                )
                 val boxPx = innerPx / visible.toFloat()
-                val boxDp = with(LocalDensity.current) { boxPx.toDp() }
+                val boxDp = with(density) { boxPx.toDp() }
                 val domainStart = if (boxPx < 1f) 0.0 else scroll.value / boxPx.toDouble()
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.cardGap)) {
                     SubCard {
@@ -210,7 +228,7 @@ fun HourlyCard(
                                 Box(
                                     Modifier
                                         .width(boxDp * run.count)
-                                        .height(Dimens.dayLabel)
+                                        .heightIn(min = Dimens.dayLabel)
                                         .background(dayBand(index)),
                                 ) {
                                     Text(
@@ -218,15 +236,12 @@ fun HourlyCard(
                                         modifier = Modifier
                                             .align(Alignment.Center)
                                             .fillMaxWidth()
-                                            .padding(horizontal = Dimens.tightGap),
+                                            .padding(horizontal = Dimens.tightGap, vertical = Dimens.tightGap),
                                         style = MaterialTheme.typography.labelLarge,
                                         textAlign = TextAlign.Center,
                                         maxLines = 1,
                                         softWrap = false,
-                                        autoSize = TextAutoSize.StepBased(
-                                            minFontSize = Dimens.minAutoSize,
-                                            maxFontSize = MaterialTheme.typography.labelLarge.fontSize,
-                                        ),
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                 }
                             }

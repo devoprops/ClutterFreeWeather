@@ -34,7 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import com.clutterfree.weather.R
+import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.ui.theme.Dimens
 import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.CardTheme

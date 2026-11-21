@@ -50,7 +50,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import com.clutterfree.weather.R
+import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.data.UsPlaceIndex
 import com.clutterfree.weather.radar.RadarSource
 import com.clutterfree.weather.radar.TileKey

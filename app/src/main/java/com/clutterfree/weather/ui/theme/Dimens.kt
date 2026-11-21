@@ -1,7 +1,6 @@
 package com.clutterfree.weather.ui.theme
 
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 object Dimens {
     val zero = 0.dp
@@ -23,7 +22,7 @@ object Dimens {
     val graphStroke = 2.5.dp
     val graphPoint = 3.dp
     val scrubber = 2.dp
-    val axisLabel = 18.dp
+    val legendSwatch = 16.dp
     val axisLabelWidth = 36.dp
     val dayLabel = 28.dp
     val dateLane = 18.dp
@@ -40,5 +39,4 @@ object Dimens {
     val radarLabelGap = 4.dp
     val hourCorner = 8.dp
     val dayCorner = 12.dp
-    val minAutoSize = 10.sp
 }

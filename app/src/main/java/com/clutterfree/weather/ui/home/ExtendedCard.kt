@@ -2,7 +2,6 @@ package com.clutterfree.weather.ui.home
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -32,11 +31,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import com.clutterfree.weather.R
+import androidx.compose.ui.text.style.TextOverflow
+import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.ui.DateFormats
 import androidx.compose.ui.unit.Dp
 import com.clutterfree.weather.ui.theme.Dimens
-import com.clutterfree.weather.ui.theme.WeatherColors
+import com.clutterfree.weather.ui.theme.scaledHeight
+import com.clutterfree.weather.ui.theme.scaledWidth
 import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.Measures
 import com.clutterfree.weather.weather.CivilDay
@@ -104,7 +105,11 @@ fun ExtendedCard(
                 } else {
                     constraints.maxWidth - with(density) { (pad * 2).toPx() }
                 }
-                val boxPx = lengthPx / visible.toFloat()
+                val dayStyle = MaterialTheme.typography.titleMedium
+                val minTilePx = with(density) { dayStyle.scaledHeight(4).toPx() }
+                val shown = minOf(visible, (lengthPx / minTilePx).toInt().coerceAtLeast(1))
+                val boxPx = lengthPx / shown.toFloat()
+                val columnWidth = maxOf(Dimens.verticalDayColumn, dayStyle.scaledWidth(6))
                 val boxDp = with(density) { boxPx.toDp() }
                 val domainStart = if (boxPx < 1f) 0.0 else scroll.value / boxPx.toDouble()
                 val leftmost = days[(domainStart.toInt()).coerceIn(0, days.lastIndex)]
@@ -114,7 +119,7 @@ fun ExtendedCard(
                 val liveFraction = if (nowX == null) {
                     0f
                 } else {
-                    ((nowX - domainStart) / visible).toFloat().coerceIn(0f, 1f)
+                    ((nowX - domainStart) / shown).toFloat().coerceIn(0f, 1f)
                 }
                 val fraction = if (moved) savedFraction else liveFraction
                 @Composable
@@ -134,11 +139,11 @@ fun ExtendedCard(
                 val dayColumn: @Composable () -> Unit = {
                     Column(
                         Modifier
-                            .width(Dimens.verticalDayColumn)
+                            .width(columnWidth)
                             .height(plotHeight)
                             .verticalScroll(scroll),
                     ) {
-                        days.forEach { day -> Box(day, Dimens.verticalDayColumn, boxDp) }
+                        days.forEach { day -> Box(day, columnWidth, boxDp) }
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.cardGap)) {
@@ -159,7 +164,7 @@ fun ExtendedCard(
                                 points = hourly.map { it.toGraphPoint() },
                                 xOf = { point -> extendedX(point.time, dayIndex, zone) },
                                 domainStart = domainStart,
-                                domainEnd = domainStart + visible,
+                                domainEnd = domainStart + shown,
                                 nightBands = nightBands(days, zone, latitude, longitude),
                                 dayTints = days.indices.filter { it % 2 == 1 }.map { it.toDouble()..(it + 1).toDouble() },
                                 labels = emptyList(),
@@ -237,21 +242,19 @@ private fun DayBox(
         Text(
             text = day.date.format(DateFormats.dayCard),
             modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = Dimens.iconInset),
-            color = WeatherColors.iconLabel,
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = temperature,
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center,
             maxLines = 1,
             softWrap = false,
-            autoSize = TextAutoSize.StepBased(
-                minFontSize = Dimens.minAutoSize,
-                maxFontSize = MaterialTheme.typography.titleMedium.fontSize,
-            ),
-        )
-        Text(
-            text = temperature,
-            modifier = Modifier.align(Alignment.BottomCenter),
-            color = WeatherColors.iconLabel,
-            style = MaterialTheme.typography.titleMedium,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
