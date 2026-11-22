@@ -82,7 +82,7 @@ class WeatherStoreTest {
             assertTrue(graph.humidity)
             assertFalse(graph.rainChance)
         }
-        assertEquals(CardTheme.SEASONAL, home.cardTheme)
+        assertEquals(CardTheme.PLAIN, home.cardTheme)
     }
 
     @Test

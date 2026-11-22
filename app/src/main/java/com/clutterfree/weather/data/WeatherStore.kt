@@ -180,6 +180,7 @@ class WeatherStore(private val directory: File) {
             radarMiles = json.optInt("radarMiles", AppConfig.RADAR_MILES).coerceAtLeast(1),
             cardTheme = enumValue(json.optString("cardTheme"), HomeSettings().cardTheme),
             chartOrientation = enumValue(json.optString("chartOrientation"), HomeSettings().chartOrientation),
+            suggestClosest = json.optBoolean("suggestClosest", true),
         )
     }
 
@@ -218,6 +219,7 @@ class WeatherStore(private val directory: File) {
         .put("radarMiles", home.radarMiles)
         .put("cardTheme", home.cardTheme.name)
         .put("chartOrientation", home.chartOrientation.name)
+        .put("suggestClosest", home.suggestClosest)
 
     private fun place(json: JSONObject): Place = Place(
         displayName = json.getString("displayName"),
@@ -300,6 +302,7 @@ class WeatherStore(private val directory: File) {
     private fun observation(json: JSONObject): Observation = Observation(
         observedAt = optionalString(json, "observedAt")?.let(Instant::parse),
         stationName = optionalString(json, "stationName"),
+        stationId = optionalString(json, "stationId"),
         temperatureCelsius = optionalDouble(json, "temperatureCelsius"),
         dewpointCelsius = optionalDouble(json, "dewpointCelsius"),
         windSpeedMetersPerSecond = optionalDouble(json, "windSpeedMetersPerSecond"),
@@ -315,6 +318,7 @@ class WeatherStore(private val directory: File) {
     private fun observationJson(observation: Observation): JSONObject = JSONObject()
         .putNullable("observedAt", observation.observedAt?.toString())
         .putNullable("stationName", observation.stationName)
+        .putNullable("stationId", observation.stationId)
         .putNullable("temperatureCelsius", observation.temperatureCelsius)
         .putNullable("dewpointCelsius", observation.dewpointCelsius)
         .putNullable("windSpeedMetersPerSecond", observation.windSpeedMetersPerSecond)

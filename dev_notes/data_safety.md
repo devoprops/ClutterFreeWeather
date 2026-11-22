@@ -35,14 +35,21 @@ Radar tiles are held in memory only while the app runs and are not written to di
 
 ## Not collected
 
-- Approximate location from this app. The saved point is precise. The app does not read the device IP. Both weather servers see that IP on the connection, and the radar tiles show the area being viewed; confirm while filling the form whether Play wants either listed as approximate location shared with a third party.
+- The device IP as something the app reads. Both weather servers see that IP on the connection, and the radar tiles show the area being viewed; confirm while filling the form whether Play wants either listed as approximate location shared with a third party. The device's own approximate location is a separate section below.
 - Device or advertising ID. The `User-Agent` sent to both servers is the app name and GitHub URL, not a per-user id.
 - Name, email, phone, photos, contacts, messages, files, audio, calendar, health, financial info, web history, or app activity
 - Crash logs, diagnostics, or analytics
-- Location permission. None is declared. A later coarse or precise permission is a new entry here and a separate Play location declaration.
+- Precise location permission. `ACCESS_FINE_LOCATION` is not declared. The saved city point is precise because it comes from the bundled place list.
+
+## Approximate device location
+
+Collected only after the user agrees. Read again on a later visit while that permission stays granted, and again when the forecast refreshes: on open if the saved forecast is older than 30 minutes, and when the user pulls to refresh. There is no background poll. Used on the device to pick the nearest bundled city, to show that place in the city list, and to mark when the current city is no longer the closest. Not written to disk. The device point itself is not sent off the device. Choosing the city then saves and shares that city's coordinates the same way as a typed city. `ACCESS_COARSE_LOCATION` is declared. `ACCESS_FINE_LOCATION` is not. If the user denies the permission, typing a city still works.
+
+Purpose: app functionality. Ephemeral.
+
+This is a Play location declaration for the user to file. Approximate location, collected, not shared as the raw device point.
 
 ## Add a section when these are built
 
-- Device location, if a permission is added.
 - Alert notifications, if delivery is tied to the saved place.
 - Any analytics, crash reporting, or account.

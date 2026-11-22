@@ -13,6 +13,7 @@ data class WeatherSnapshot(
 data class Observation(
     val observedAt: Instant?,
     val stationName: String?,
+    val stationId: String? = null,
     val temperatureCelsius: Double?,
     val dewpointCelsius: Double?,
     val windSpeedMetersPerSecond: Double?,

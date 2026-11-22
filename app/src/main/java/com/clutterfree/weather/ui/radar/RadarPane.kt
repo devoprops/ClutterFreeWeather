@@ -91,9 +91,28 @@ fun RadarPane(
     }
     val homeX = WebMercator.x(place.longitude)
     val homeY = WebMercator.y(place.latitude)
-    var centerX by rememberSaveable(place.displayName) { mutableDoubleStateOf(homeX) }
-    var centerY by rememberSaveable(place.displayName) { mutableDoubleStateOf(homeY) }
-    var zoom by rememberSaveable(place.displayName, startMiles) { mutableDoubleStateOf(Double.NaN) }
+    var centerX by rememberSaveable { mutableDoubleStateOf(homeX) }
+    var centerY by rememberSaveable { mutableDoubleStateOf(homeY) }
+    var zoom by rememberSaveable { mutableDoubleStateOf(Double.NaN) }
+    var trackedPlace by rememberSaveable { mutableStateOf(place.displayName) }
+    var trackedMiles by rememberSaveable { mutableIntStateOf(startMiles) }
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    val tiles = remember { mutableStateMapOf<TileKey, ImageBitmap>() }
+    if (trackedPlace != place.displayName || trackedMiles != startMiles) {
+        val placeChanged = trackedPlace != place.displayName
+        trackedPlace = place.displayName
+        trackedMiles = startMiles
+        if (placeChanged) {
+            centerX = homeX
+            centerY = homeY
+            tiles.clear()
+        }
+        zoom = if (size.width > 0) {
+            zoomForMiles(startMiles.toDouble(), place.latitude, size.width.toFloat())
+        } else {
+            Double.NaN
+        }
+    }
     var frame by rememberSaveable { mutableIntStateOf(AppConfig.RADAR_FRAMES - 1) }
     var playing by rememberSaveable { mutableStateOf(false) }
     var showRadar by rememberSaveable { mutableStateOf(true) }
@@ -101,8 +120,7 @@ fun RadarPane(
     var showTowns by rememberSaveable { mutableStateOf(true) }
     var valid by remember { mutableStateOf<Instant?>(null) }
     var unavailable by remember { mutableStateOf(false) }
-    var size by remember { mutableStateOf(IntSize.Zero) }
-    val tiles = remember { mutableStateMapOf<TileKey, ImageBitmap>() }
+    LaunchedEffect(place.displayName) { tiles.clear() }
     val zone = runCatching { ZoneId.of(place.timeZone) }.getOrElse { ZoneId.systemDefault() }
 
     fun worldPx(z: Double = zoom) = AppConfig.RADAR_TILE_PX * 2.0.pow(z)

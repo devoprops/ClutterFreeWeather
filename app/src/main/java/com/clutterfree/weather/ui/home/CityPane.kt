@@ -2,6 +2,7 @@ package com.clutterfree.weather.ui.home
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,13 +10,14 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -54,9 +56,14 @@ fun CityPane(
     onReorder: (List<Place>) -> Unit,
     busy: Boolean,
     status: String?,
+    onUseDevice: () -> Unit,
+    nearest: UsPlace? = null,
+    stationCode: String? = null,
+    onPickNearest: () -> Unit = {},
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var explainLocation by remember { mutableStateOf(false) }
     var order by remember(saved) { mutableStateOf(saved) }
     var dragIndex by remember { mutableIntStateOf(-1) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
@@ -66,6 +73,29 @@ fun CityPane(
             Text(stringResource(R.string.back))
         }
         Text(text = stringResource(R.string.cities), style = MaterialTheme.typography.titleLarge)
+        TextButton(
+            onClick = { explainLocation = true },
+            enabled = !busy,
+            modifier = Modifier.heightIn(min = Dimens.touchTarget),
+        ) {
+            Text(stringResource(R.string.use_device_location))
+        }
+        if (explainLocation) {
+            AlertDialog(
+                onDismissRequest = { explainLocation = false },
+                title = { Text(stringResource(R.string.device_location_title)) },
+                text = { Text(stringResource(R.string.device_location_reason)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        explainLocation = false
+                        onUseDevice()
+                    }) { Text(stringResource(R.string.device_location_continue)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { explainLocation = false }) { Text(stringResource(R.string.cancel)) }
+                },
+            )
+        }
         OutlinedTextField(
             value = query,
             onValueChange = onQuery,
@@ -89,6 +119,35 @@ fun CityPane(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(text = suggestion.label, style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+        val nearestIsSaved = nearest != null && saved.any { it.displayName == nearest.label }
+        if (nearest != null && !nearestIsSaved) {
+            val nearestTitle = if (stationCode.isNullOrBlank()) {
+                nearest.label
+            } else {
+                stringResource(R.string.location_with_station, stationCode, nearest.label)
+            }
+            HorizontalDivider(Modifier.padding(top = Dimens.sectionGap))
+            Text(
+                text = stringResource(R.string.current_location),
+                modifier = Modifier.padding(top = Dimens.cardGap),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = Dimens.touchTarget)
+                    .clickable(enabled = !busy) { onPickNearest() }
+                    .padding(end = Dimens.cardPadding),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(Dimens.touchTarget))
+                Text(
+                    text = nearestTitle,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
             }
         }
         if (saved.isNotEmpty()) {
@@ -150,8 +209,18 @@ fun CityPane(
                             }
                         },
                 )
+                val city = if (nearest?.label == place.displayName && isCurrent && !stationCode.isNullOrBlank()) {
+                    stringResource(R.string.location_with_station, stationCode, place.displayName)
+                } else {
+                    place.displayName
+                }
+                val title = if (nearest?.label == place.displayName) {
+                    stringResource(R.string.nearest_tag, city)
+                } else {
+                    city
+                }
                 Text(
-                    text = place.displayName,
+                    text = title,
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = if (isCurrent) FontWeight.SemiBold else null,

@@ -46,16 +46,18 @@ object NwsParser {
         if (id.isBlank()) return null
         val stationUrl = id.removeSuffix("/")
         return StationLink(
+            id = stationUrl.substringAfterLast('/').ifBlank { null },
             name = properties.optString("name").ifBlank { null },
             observationUrl = "$stationUrl/observations/latest",
         )
     }
 
-    fun parseObservation(json: String, stationName: String?): Observation {
+    fun parseObservation(json: String, stationName: String?, stationId: String? = null): Observation {
         val properties = JSONObject(json).getJSONObject("properties")
         return Observation(
             observedAt = instant(properties.optString("timestamp")),
             stationName = stationName,
+            stationId = stationId,
             temperatureCelsius = celsius(properties.optJSONObject("temperature")),
             dewpointCelsius = celsius(properties.optJSONObject("dewpoint")),
             windSpeedMetersPerSecond = metersPerSecond(properties.optJSONObject("windSpeed")),
@@ -199,6 +201,7 @@ object NwsParser {
 }
 
 data class StationLink(
+    val id: String?,
     val name: String?,
     val observationUrl: String,
 )

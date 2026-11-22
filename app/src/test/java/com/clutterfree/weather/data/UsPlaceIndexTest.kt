@@ -1,6 +1,7 @@
 package com.clutterfree.weather.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -28,6 +29,33 @@ class UsPlaceIndexTest {
         assertEquals("San José", index.suggest("san jose").single().name)
         assertEquals("Springfield", index.suggest("springfield ma").single().name)
         assertEquals("MA", index.suggest("springfield, ma").single().state)
+    }
+
+    @Test
+    fun nearestPlaceIsTheClosestCentroid() {
+        assertEquals("Chicago Heights", index.nearest(41.51, -87.64)!!.name)
+        assertEquals("Chicago", index.nearest(41.84, -87.68)!!.name)
+    }
+
+    @Test
+    fun closerCityIsAnyNearerPlace() {
+        val heights = index.closer(
+            latitude = 41.64,
+            longitude = -87.66,
+            currentLabel = "Chicago, IL",
+            currentLatitude = 41.84,
+            currentLongitude = -87.68,
+        )
+        assertEquals("Chicago Heights", heights!!.name)
+        assertNull(
+            index.closer(
+                latitude = 41.83,
+                longitude = -87.68,
+                currentLabel = "Chicago, IL",
+                currentLatitude = 41.84,
+                currentLongitude = -87.68,
+            ),
+        )
     }
 
     @Test

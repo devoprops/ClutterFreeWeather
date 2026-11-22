@@ -1,7 +1,10 @@
 package com.clutterfree.weather.ui.home
 
+import android.Manifest
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -46,11 +50,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.window.core.layout.WindowSizeClass
 import com.devoprop.clutterfreeweather.R
+import com.clutterfree.weather.data.CoarseLocation
 import com.clutterfree.weather.data.UsPlace
 import com.clutterfree.weather.data.UsPlaceIndex
 import com.clutterfree.weather.ui.DateFormats
@@ -106,7 +113,27 @@ fun HomeScreen(repository: WeatherRepository) {
     val noMatch = stringResource(R.string.no_matching_place)
     val outside = stringResource(R.string.outside_coverage)
     val context = LocalContext.current
+    val coarse = remember(context) { CoarseLocation(context) }
+    var device by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    val locationDenied = stringResource(R.string.device_location_denied)
+    val locationUnavailable = stringResource(R.string.device_location_unavailable)
     val suggestions = remember(query, placeIndex) { placeIndex?.suggest(query).orEmpty() }
+    val closer = remember(device, place, placeIndex) {
+        val fix = device ?: return@remember null
+        val current = place ?: return@remember null
+        placeIndex?.closer(
+            latitude = fix.first,
+            longitude = fix.second,
+            currentLabel = current.displayName,
+            currentLatitude = current.latitude,
+            currentLongitude = current.longitude,
+        )
+    }
+    val nearestPlace = remember(device, placeIndex) {
+        val fix = device ?: return@remember null
+        placeIndex?.nearest(fix.first, fix.second)
+    }
+    val stationCode = if (nearestPlace?.label == place?.displayName) snapshot?.observation?.stationId else null
 
     fun apply(result: LoadResult, loadedPlace: Place?) {
         place = loadedPlace
@@ -127,7 +154,82 @@ fun HomeScreen(repository: WeatherRepository) {
         }
     }
 
+    fun selectPlace(selected: UsPlace) {
+        if (busy) return
+        val ticket = generation.incrementAndGet()
+        busy = true
+        refreshing = true
+        scope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                gate.withLock {
+                    if (ticket != generation.get()) {
+                        null
+                    } else {
+                        when (val result = repository.choosePlace(selected.label, selected.latitude, selected.longitude)) {
+                            is SearchResult.Found -> {
+                                val loaded = repository.load()
+                                PlaceOutcome.Found(loaded, repository.selectedPlace() ?: result.place, repository.savedPlaces())
+                            }
+                            SearchResult.NoMatchingPlace -> PlaceOutcome.Message(noMatch)
+                            SearchResult.OutsideCoverage -> PlaceOutcome.Message(outside)
+                            is SearchResult.Failed -> PlaceOutcome.Message(result.message)
+                        }
+                    }
+                }
+            }
+            if (outcome != null && ticket == generation.get()) {
+                when (outcome) {
+                    is PlaceOutcome.Found -> {
+                        query = ""
+                        showCities = false
+                        saved = outcome.saved
+                        apply(outcome.loaded, outcome.selected)
+                    }
+                    is PlaceOutcome.Message -> status = outcome.text
+                }
+            }
+            if (ticket == generation.get()) {
+                busy = false
+                refreshing = false
+            }
+        }
+    }
+
+    fun useFix(selectNearest: Boolean) {
+        if (busy) return
+        val ticket = generation.get()
+        scope.launch {
+            val fix = withContext(Dispatchers.IO) { coarse.read() }
+            if (ticket != generation.get()) return@launch
+            device = fix
+            if (!selectNearest) return@launch
+            if (fix == null) {
+                status = locationUnavailable
+                return@launch
+            }
+            val nearest = placeIndex?.nearest(fix.first, fix.second)
+            if (ticket != generation.get()) return@launch
+            when {
+                nearest != null -> selectPlace(nearest)
+                placeIndex != null -> status = locationUnavailable
+            }
+        }
+    }
+
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) useFix(selectNearest = true) else status = locationDenied
+    }
+
+    fun readDevice() {
+        if (!coarse.permitted()) return
+        scope.launch {
+            val fix = withContext(Dispatchers.IO) { coarse.read() } ?: return@launch
+            device = fix
+        }
+    }
+
     LaunchedEffect(Unit) {
+        readDevice()
         placeIndex = withContext(Dispatchers.IO) {
             context.assets.open("us_places.txt").use { UsPlaceIndex.load(it) }
         }
@@ -171,47 +273,6 @@ fun HomeScreen(repository: WeatherRepository) {
             apply(loaded.first, loaded.second)
         }
         if (ticket == generation.get()) refreshing = false
-    }
-
-    fun selectPlace(selected: UsPlace) {
-        if (busy) return
-        val ticket = generation.incrementAndGet()
-        busy = true
-        refreshing = true
-        scope.launch {
-            val outcome = withContext(Dispatchers.IO) {
-                gate.withLock {
-                    if (ticket != generation.get()) {
-                        null
-                    } else {
-                        when (val result = repository.choosePlace(selected.label, selected.latitude, selected.longitude)) {
-                            is SearchResult.Found -> {
-                                val loaded = repository.load()
-                                PlaceOutcome.Found(loaded, repository.selectedPlace() ?: result.place, repository.savedPlaces())
-                            }
-                            SearchResult.NoMatchingPlace -> PlaceOutcome.Message(noMatch)
-                            SearchResult.OutsideCoverage -> PlaceOutcome.Message(outside)
-                            is SearchResult.Failed -> PlaceOutcome.Message(result.message)
-                        }
-                    }
-                }
-            }
-            if (outcome != null && ticket == generation.get()) {
-                when (outcome) {
-                    is PlaceOutcome.Found -> {
-                        query = ""
-                        showCities = false
-                        saved = outcome.saved
-                        apply(outcome.loaded, outcome.selected)
-                    }
-                    is PlaceOutcome.Message -> status = outcome.text
-                }
-            }
-            if (ticket == generation.get()) {
-                busy = false
-                refreshing = false
-            }
-        }
     }
 
     fun submit() {
@@ -268,7 +329,9 @@ fun HomeScreen(repository: WeatherRepository) {
     }
 
     fun refresh() {
-        if (busy || place == null) return
+        if (busy || refreshing) return
+        readDevice()
+        if (place == null) return
         val ticket = generation.get()
         refreshing = true
         scope.launch {
@@ -354,6 +417,8 @@ fun HomeScreen(repository: WeatherRepository) {
                 }
             }
         },
+        closer = closer,
+        onUpdateClosest = { closer?.let(::selectPlace) },
         onReset = {
             settings = HomeSettings()
             units = DisplayUnits()
@@ -395,6 +460,17 @@ fun HomeScreen(repository: WeatherRepository) {
                 },
                 busy = busy,
                 status = status,
+                onUseDevice = {
+                    if (coarse.permitted()) useFix(selectNearest = true)
+                    else locationPermission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                },
+                nearest = nearestPlace,
+                stationCode = stationCode,
+                onPickNearest = {
+                    val target = nearestPlace ?: return@CityPane
+                    val savedMatch = saved.firstOrNull { it.displayName == target.label }
+                    if (savedMatch != null) switchTo(savedMatch) else selectPlace(target)
+                },
                 onBack = { showCities = false },
             )
         },
@@ -423,8 +499,10 @@ private fun HomeContent(
     onCloseSettings: () -> Unit,
     onSettings: (HomeSettings) -> Unit,
     onUnits: (DisplayUnits) -> Unit,
-    onReset: () -> Unit,
-    showCities: Boolean,
+        onReset: () -> Unit,
+        closer: UsPlace? = null,
+        onUpdateClosest: () -> Unit = {},
+        showCities: Boolean,
     onOpenCities: () -> Unit,
     cities: @Composable () -> Unit,
 ) {
@@ -456,7 +534,18 @@ private fun HomeContent(
             if (snapshot != null && snapshot.alerts.isNotEmpty()) {
                 AlertBanner(snapshot.alerts, onOpenAlerts)
             }
-            Header(place, snapshot?.observation, zone, onOpenCities, onOpenSettings)
+            Header(
+                place = place,
+                observation = snapshot?.observation,
+                zone = zone,
+                onOpenCities = onOpenCities,
+                onRefresh = onRefresh,
+                refreshing = refreshing,
+                onOpenSettings = onOpenSettings,
+                closer = closer != null,
+                suggest = settings.suggestClosest && closer != null,
+                onUpdateClosest = onUpdateClosest,
+            )
             status?.let {
                 Text(text = it, color = MaterialTheme.colorScheme.error)
             }
@@ -592,7 +681,12 @@ private fun Header(
     observation: Observation?,
     zone: ZoneId,
     onOpenCities: () -> Unit,
+    onRefresh: () -> Unit,
+    refreshing: Boolean,
     onOpenSettings: () -> Unit,
+    closer: Boolean,
+    suggest: Boolean,
+    onUpdateClosest: () -> Unit,
 ) {
     val changeCity = stringResource(R.string.change_city)
     Column {
@@ -611,7 +705,21 @@ private fun Header(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (closer) {
+                    val closerPlace = stringResource(R.string.closer_place)
+                    Text(
+                        text = stringResource(R.string.closer_mark),
+                        modifier = Modifier
+                            .padding(start = Dimens.tightGap)
+                            .clearAndSetSemantics { contentDescription = closerPlace },
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                }
                 Icon(painter = painterResource(R.drawable.ic_expand_more), contentDescription = null)
+            }
+            IconButton(onClick = onRefresh, enabled = !refreshing) {
+                Icon(painter = painterResource(R.drawable.ic_refresh), contentDescription = stringResource(R.string.refresh))
             }
             IconButton(onClick = onOpenSettings) {
                 Icon(painter = painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.settings))
@@ -628,6 +736,14 @@ private fun Header(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        if (suggest) {
+            TextButton(
+                onClick = onUpdateClosest,
+                modifier = Modifier.heightIn(min = Dimens.touchTarget),
+            ) {
+                Text(stringResource(R.string.update_closest))
+            }
         }
     }
 }
@@ -767,6 +883,7 @@ private fun CitiesPreview() {
             onSwitch = {},
             onDelete = {},
             onReorder = {},
+            onUseDevice = {},
             busy = false,
             status = null,
             onBack = {},

@@ -97,6 +97,11 @@ fun SettingsPane(
             }
         }
 
+        Section(R.string.settings_location)
+        CheckRow(stringResource(R.string.settings_suggest_closest), settings.suggestClosest) {
+            onSettings(settings.copy(suggestClosest = it))
+        }
+
         Section(R.string.settings_units)
         UnitChoice(
             label = R.string.units_temperature,

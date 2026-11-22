@@ -172,7 +172,7 @@ class NwsWeatherRepository(
             Fetch.Ready(
                 WeatherSnapshot(
                     fetchedAt = now(),
-                    observation = NwsParser.parseObservation(observation.body, station.name),
+                    observation = NwsParser.parseObservation(observation.body, station.name, station.id),
                     hourly = NwsParser.parsePeriods(hourlyBody),
                     dayNight = NwsParser.parsePeriods(dailyBody),
                     alerts = NwsParser.parseAlerts(alerts.body),

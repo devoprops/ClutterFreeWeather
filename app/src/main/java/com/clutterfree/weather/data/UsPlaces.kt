@@ -1,6 +1,7 @@
 package com.clutterfree.weather.data
 
 import com.clutterfree.weather.weather.AppConfig
+import com.clutterfree.weather.weather.milesBetween
 import java.io.InputStream
 import java.text.Normalizer
 
@@ -20,6 +21,37 @@ class UsPlaceIndex(private val places: List<UsPlace>) {
         places.asSequence().filter {
             it.latitude in minLatitude..maxLatitude && it.longitude in minLongitude..maxLongitude
         }
+
+    fun nearest(latitude: Double, longitude: Double): UsPlace? {
+        var closest: UsPlace? = null
+        var closestMiles = Double.POSITIVE_INFINITY
+        for (place in places) {
+            val miles = milesBetween(latitude, longitude, place.latitude, place.longitude)
+            if (miles < closestMiles) {
+                closest = place
+                closestMiles = miles
+            }
+        }
+        return closest
+    }
+
+    /**
+     * The bundled place nearer to the device than the current city.
+     * Returns null when the current city is already the closest.
+     */
+    fun closer(
+        latitude: Double,
+        longitude: Double,
+        currentLabel: String,
+        currentLatitude: Double,
+        currentLongitude: Double,
+    ): UsPlace? {
+        val nearest = nearest(latitude, longitude) ?: return null
+        if (nearest.label == currentLabel) return null
+        val currentMiles = milesBetween(latitude, longitude, currentLatitude, currentLongitude)
+        val nearestMiles = milesBetween(latitude, longitude, nearest.latitude, nearest.longitude)
+        return nearest.takeIf { currentMiles > nearestMiles }
+    }
 
     fun suggest(query: String, limit: Int = AppConfig.PLACE_SUGGESTIONS): List<UsPlace> {
         val parsed = parseQuery(query) ?: return emptyList()
