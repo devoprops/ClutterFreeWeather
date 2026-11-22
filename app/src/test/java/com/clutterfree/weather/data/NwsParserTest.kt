@@ -50,12 +50,14 @@ class NwsParserTest {
     @Test
     fun parseObservationConvertsQuantitativeValues() {
         val station = NwsParser.parseFirstStation(fixture("nws-stations.json"))!!
-        val observation = NwsParser.parseObservation(fixture("nws-observation.json"), station.name, station.id)
+        val observation = NwsParser.parseObservation(fixture("nws-observation.json"), station)
 
         assertEquals("KORD", station.id)
         assertEquals("https://api.weather.gov/stations/KORD/observations/latest", station.observationUrl)
         assertEquals("Chicago O'Hare", observation.stationName)
         assertEquals("KORD", observation.stationId)
+        assertEquals(41.96019, observation.stationLatitude!!, 0.00001)
+        assertEquals(-87.93389, observation.stationLongitude!!, 0.00001)
         assertEquals(10.0, observation.temperatureCelsius!!, 0.01)
         assertEquals(10.0, observation.windSpeedMetersPerSecond!!, 0.01)
         assertEquals(270.0, observation.windDirectionDegrees!!, 0.01)

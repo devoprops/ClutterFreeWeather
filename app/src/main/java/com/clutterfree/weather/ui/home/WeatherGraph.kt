@@ -122,7 +122,7 @@ fun WeatherGraph(
     val fraction = scrubberFraction.coerceIn(0f, 1f)
     val at = domainStart + fraction * span
     val series = plotSeries(graph, formatter)
-    val time = DateFormats.clock.format(timeAt(at).atZone(zone))
+    val time = DateFormats.clock().format(timeAt(at).atZone(zone))
     val readout = buildList {
         add(time)
         series.filter { it.enabled }.forEach { item ->

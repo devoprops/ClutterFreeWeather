@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.ui.DateFormats
+import com.clutterfree.weather.ui.conditionLabel
 import androidx.compose.ui.unit.Dp
 import com.clutterfree.weather.ui.theme.Dimens
 import com.clutterfree.weather.ui.theme.scaledHeight
@@ -236,11 +237,11 @@ private fun DayBox(
             latitude = latitude,
             longitude = longitude,
             zone = zone,
-            contentDescription = iconPeriod?.shortForecast,
+            contentDescription = conditionLabel(iconPeriod?.iconUrl) ?: iconPeriod?.shortForecast,
             modifier = Modifier.fillMaxSize().padding(Dimens.iconInset),
         )
         Text(
-            text = day.date.format(DateFormats.dayCard),
+            text = day.date.format(DateFormats.dayCard()),
             modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = Dimens.iconInset),
             style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center,

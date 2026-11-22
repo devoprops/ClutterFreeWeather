@@ -32,6 +32,7 @@ object AppConfig {
     const val DAY_TINT_ALPHA = 0.06f
     const val PAST_OVERLAY_ALPHA = 0.38f
     const val ICON_DARKEN_ALPHA = 0.18f
+    const val HOUR_PANEL_ALPHA = 0.07f
     const val PAGE_TINT = 0.08f
     const val CARD_TINT = 0.14f
     const val SUBCARD_TINT = 0.24f

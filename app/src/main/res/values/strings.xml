@@ -25,6 +25,7 @@
     <string name="no_matching_place">No matching place.</string>
     <string name="outside_coverage">That place is outside US coverage.</string>
     <string name="observed_at">%1$s · %2$s</string>
+    <string name="station_with_code">%1$s (%2$s)</string>
     <string name="today">Today</string>
     <string name="hourly">Hourly</string>
     <string name="extended">Daily</string>
@@ -120,4 +121,26 @@
     <string name="unit_kmh">km/h</string>
     <string name="unit_inches">in</string>
     <string name="unit_millimeters">mm</string>
+    <string name="range_to">to</string>
+    <string name="condition_skc">Clear</string>
+    <string name="condition_few">A few clouds</string>
+    <string name="condition_sct">Partly cloudy</string>
+    <string name="condition_bkn">Mostly cloudy</string>
+    <string name="condition_ovc">Cloudy</string>
+    <string name="condition_rain">Rain</string>
+    <string name="condition_rain_showers">Showers</string>
+    <string name="condition_snow">Snow</string>
+    <string name="condition_sleet">Sleet</string>
+    <string name="condition_fzra">Freezing rain</string>
+    <string name="condition_tsra">Thunderstorms</string>
+    <string name="condition_fog">Fog</string>
+    <string name="condition_tornado">Tornado</string>
+    <string name="condition_hurricane">Hurricane</string>
+    <string name="condition_tropical_storm">Tropical storm</string>
+    <string name="condition_rain_snow">Rain and snow</string>
+    <string name="condition_rain_sleet">Rain and sleet</string>
+    <string name="condition_snow_sleet">Snow and sleet</string>
+    <string name="condition_rain_fzra">Rain and freezing rain</string>
+    <string name="condition_snow_fzra">Snow and freezing rain</string>
+    <string name="condition_windy">%1$s, windy</string>
 </resources>

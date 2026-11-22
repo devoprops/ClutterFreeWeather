@@ -13,5 +13,6 @@ object Measures {
     const val WIND_DISPLAY_GAP = 0.5
     const val DEGREES_PER_CIRCLE = 360.0
     const val METERS_PER_MILE = 1_609.344
+    const val METERS_PER_KILOMETER = 1_000.0
     const val EARTH_CIRCUMFERENCE_METERS = 40_075_016.686
 }

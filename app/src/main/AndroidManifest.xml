@@ -18,8 +18,10 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
+        android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
-        android:theme="@style/Theme.ClutterFreeWeather">
+        android:theme="@style/Theme.ClutterFreeWeather"
+        tools:targetApi="33">
         <activity
             android:name="com.clutterfree.weather.MainActivity"
             android:exported="true"

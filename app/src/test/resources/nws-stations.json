@@ -1,6 +1,10 @@
 {
   "features": [
     {
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-87.93389, 41.96019]
+      },
       "properties": {
         "@id": "https://api.weather.gov/stations/KORD",
         "name": "Chicago O'Hare"

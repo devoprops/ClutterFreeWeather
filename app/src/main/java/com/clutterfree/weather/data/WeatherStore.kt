@@ -303,6 +303,8 @@ class WeatherStore(private val directory: File) {
         observedAt = optionalString(json, "observedAt")?.let(Instant::parse),
         stationName = optionalString(json, "stationName"),
         stationId = optionalString(json, "stationId"),
+        stationLatitude = optionalDouble(json, "stationLatitude"),
+        stationLongitude = optionalDouble(json, "stationLongitude"),
         temperatureCelsius = optionalDouble(json, "temperatureCelsius"),
         dewpointCelsius = optionalDouble(json, "dewpointCelsius"),
         windSpeedMetersPerSecond = optionalDouble(json, "windSpeedMetersPerSecond"),
@@ -319,6 +321,8 @@ class WeatherStore(private val directory: File) {
         .putNullable("observedAt", observation.observedAt?.toString())
         .putNullable("stationName", observation.stationName)
         .putNullable("stationId", observation.stationId)
+        .putNullable("stationLatitude", observation.stationLatitude)
+        .putNullable("stationLongitude", observation.stationLongitude)
         .putNullable("temperatureCelsius", observation.temperatureCelsius)
         .putNullable("dewpointCelsius", observation.dewpointCelsius)
         .putNullable("windSpeedMetersPerSecond", observation.windSpeedMetersPerSecond)

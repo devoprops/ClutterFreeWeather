@@ -41,23 +41,30 @@ object NwsParser {
     fun parseFirstStation(json: String): StationLink? {
         val features = JSONObject(json).optJSONArray("features") ?: return null
         if (features.length() == 0) return null
-        val properties = features.getJSONObject(0).getJSONObject("properties")
+        val feature = features.getJSONObject(0)
+        val properties = feature.getJSONObject("properties")
         val id = properties.optString("@id").ifBlank { properties.optString("id") }
         if (id.isBlank()) return null
         val stationUrl = id.removeSuffix("/")
+        val coordinates = feature.optJSONObject("geometry")?.optJSONArray("coordinates")
+        val point = if (coordinates != null && coordinates.length() >= 2) coordinates else null
         return StationLink(
             id = stationUrl.substringAfterLast('/').ifBlank { null },
             name = properties.optString("name").ifBlank { null },
             observationUrl = "$stationUrl/observations/latest",
+            latitude = point?.optDouble(1)?.takeUnless { it.isNaN() },
+            longitude = point?.optDouble(0)?.takeUnless { it.isNaN() },
         )
     }
 
-    fun parseObservation(json: String, stationName: String?, stationId: String? = null): Observation {
+    fun parseObservation(json: String, station: StationLink? = null): Observation {
         val properties = JSONObject(json).getJSONObject("properties")
         return Observation(
             observedAt = instant(properties.optString("timestamp")),
-            stationName = stationName,
-            stationId = stationId,
+            stationName = station?.name,
+            stationId = station?.id,
+            stationLatitude = station?.latitude,
+            stationLongitude = station?.longitude,
             temperatureCelsius = celsius(properties.optJSONObject("temperature")),
             dewpointCelsius = celsius(properties.optJSONObject("dewpoint")),
             windSpeedMetersPerSecond = metersPerSecond(properties.optJSONObject("windSpeed")),
@@ -204,4 +211,6 @@ data class StationLink(
     val id: String?,
     val name: String?,
     val observationUrl: String,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
 )

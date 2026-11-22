@@ -1,5 +1,6 @@
 package com.clutterfree.weather.weather
 
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -38,15 +39,20 @@ class UnitFormatter(private val units: DisplayUnits) {
 
     fun percent(value: Double): String = "${value.roundToInt()}%"
 
-    fun wind(lowMetersPerSecond: Double, highMetersPerSecond: Double? = null): String {
+    fun wind(lowMetersPerSecond: Double, highMetersPerSecond: Double? = null, rangeWord: String = "to"): String {
         val low = windValue(lowMetersPerSecond)
         val high = highMetersPerSecond?.let(::windValue)
         val suffix = if (units.wind == WindUnit.MILES_PER_HOUR) "mph" else "km/h"
         return if (high == null || abs(high - low) < Measures.WIND_DISPLAY_GAP) {
             "${low.roundToInt()} $suffix"
         } else {
-            "${low.roundToInt()} to ${high.roundToInt()} $suffix"
+            "${low.roundToInt()} $rangeWord ${high.roundToInt()} $suffix"
         }
+    }
+
+    fun distance(miles: Double): String = when (units.wind) {
+        WindUnit.MILES_PER_HOUR -> "${miles.roundToInt()} mi"
+        WindUnit.KILOMETERS_PER_HOUR -> "${(miles * Measures.METERS_PER_MILE / Measures.METERS_PER_KILOMETER).roundToInt()} km"
     }
 
     fun precipitation(millimeters: Double): String = when (units.precipitation) {
@@ -72,7 +78,7 @@ class UnitFormatter(private val units: DisplayUnits) {
         return if (rounded == rounded.toInt().toDouble()) {
             rounded.toInt().toString()
         } else {
-            rounded.toString()
+            String.format(Locale.getDefault(), "%.1f", rounded)
         }
     }
 

@@ -77,9 +77,11 @@ import com.clutterfree.weather.weather.Observation
 import com.clutterfree.weather.weather.Place
 import com.clutterfree.weather.weather.RefreshResult
 import com.clutterfree.weather.weather.SearchResult
+import com.clutterfree.weather.weather.UnitFormatter
 import com.clutterfree.weather.weather.WeatherAlert
 import com.clutterfree.weather.weather.WeatherRepository
 import com.clutterfree.weather.weather.WeatherSnapshot
+import com.clutterfree.weather.weather.milesBetween
 import com.clutterfree.weather.weather.rankedAlerts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -538,6 +540,7 @@ private fun HomeContent(
                 place = place,
                 observation = snapshot?.observation,
                 zone = zone,
+                units = units,
                 onOpenCities = onOpenCities,
                 onRefresh = onRefresh,
                 refreshing = refreshing,
@@ -680,6 +683,7 @@ private fun Header(
     place: Place?,
     observation: Observation?,
     zone: ZoneId,
+    units: DisplayUnits,
     onOpenCities: () -> Unit,
     onRefresh: () -> Unit,
     refreshing: Boolean,
@@ -725,15 +729,28 @@ private fun Header(
                 Icon(painter = painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.settings))
             }
         }
-        val station = observation?.stationName
-        val time = observation?.observedAt?.atZone(zone)?.format(DateFormats.clock)
+        val name = observation?.stationName
+        val code = observation?.stationId
+        val station = when {
+            name != null && code != null -> stringResource(R.string.station_with_code, name, code)
+            else -> name ?: code
+        }
+        val stationLatitude = observation?.stationLatitude
+        val stationLongitude = observation?.stationLongitude
+        val distance = if (place != null && stationLatitude != null && stationLongitude != null) {
+            UnitFormatter(units).distance(milesBetween(place.latitude, place.longitude, stationLatitude, stationLongitude))
+        } else {
+            null
+        }
+        val time = observation?.observedAt?.atZone(zone)?.format(DateFormats.clock())
         if (station != null || time != null) {
             val missing = stringResource(R.string.missing)
+            val located = if (distance != null) stringResource(R.string.observed_at, station ?: missing, distance) else station
             Text(
-                text = stringResource(R.string.observed_at, station ?: missing, time ?: missing),
+                text = stringResource(R.string.observed_at, located ?: missing, time ?: missing),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }

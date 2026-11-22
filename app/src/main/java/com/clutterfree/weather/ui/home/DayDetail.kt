@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.ui.DateFormats
+import com.clutterfree.weather.ui.conditionLabel
 import com.clutterfree.weather.ui.theme.Dimens
 import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.CivilDay
@@ -55,15 +56,18 @@ fun DayDetail(
     )
     val windPeriod = day.daytime ?: day.nighttime
     val wind = windPeriod?.windSpeedMetersPerSecond?.let { low ->
-        listOfNotNull(windPeriod.windDirection, formatter.wind(low, windPeriod.windSpeedHighMetersPerSecond))
+        listOfNotNull(
+            windPeriod.windDirection,
+            formatter.wind(low, windPeriod.windSpeedHighMetersPerSecond, stringResource(R.string.range_to)),
+        )
             .joinToString(" ")
     }
     val facts = buildList {
         if (DetailItem.SUNRISE in details) {
-            add(stringResource(R.string.detail_sunrise, sun?.sunrise?.atZone(zone)?.format(DateFormats.clock) ?: missing))
+            add(stringResource(R.string.detail_sunrise, sun?.sunrise?.atZone(zone)?.format(DateFormats.clock()) ?: missing))
         }
         if (DetailItem.SUNSET in details) {
-            add(stringResource(R.string.detail_sunset, sun?.sunset?.atZone(zone)?.format(DateFormats.clock) ?: missing))
+            add(stringResource(R.string.detail_sunset, sun?.sunset?.atZone(zone)?.format(DateFormats.clock()) ?: missing))
         }
         if (showHighLow && DetailItem.HIGH in details) {
             add(stringResource(R.string.detail_high, day.highCelsius?.let(formatter::temperature) ?: missing))
@@ -85,7 +89,7 @@ fun DayDetail(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(Dimens.cardGap)) {
         if (showDate) {
             Text(
-                text = day.date.format(DateFormats.detailDate),
+                text = day.date.format(DateFormats.detailDate()),
                 style = MaterialTheme.typography.titleMedium,
             )
         }
@@ -119,7 +123,7 @@ private fun currentSummary(observation: Observation, formatter: UnitFormatter): 
         )
     }
     val parts = listOfNotNull(
-        observation.textDescription?.takeIf { it.isNotBlank() },
+        conditionLabel(observation.iconUrl) ?: observation.textDescription?.takeIf { it.isNotBlank() },
         observation.temperatureCelsius?.let(formatter::temperature),
         wind,
         observation.relativeHumidityPercent?.let { stringResource(R.string.current_humidity, formatter.percent(it)) },

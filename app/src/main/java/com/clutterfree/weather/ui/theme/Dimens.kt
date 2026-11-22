@@ -29,8 +29,10 @@ object Dimens {
     val tipPadding = 3.dp
     val tipGap = 4.dp
     val tipCorner = 4.dp
-    val verticalHourRow = 64.dp
-    val verticalHourColumn = 148.dp
+    val verticalHourRow = 76.dp
+    val verticalHourColumn = 196.dp
+    val hourPanelGap = 2.dp
+    val hourPanelPadding = 6.dp
     val verticalDayColumn = 120.dp
     val radarMarker = 6.dp
     val radarMarkerRing = 2.dp

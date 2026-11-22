@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.ui.DateFormats
+import com.clutterfree.weather.ui.conditionLabel
 import com.clutterfree.weather.ui.theme.Dimens
 import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.CivilDay
@@ -65,7 +66,9 @@ fun TodayCard(
     val temperature = snapshot.observation?.temperatureCelsius ?: current?.temperatureCelsius
     val iconUrl = snapshot.observation?.iconUrl ?: current?.iconUrl
     val iconAt = snapshot.observation?.observedAt ?: now
-    val description = snapshot.observation?.textDescription ?: current?.shortForecast
+    val description = conditionLabel(iconUrl)
+        ?: snapshot.observation?.textDescription
+        ?: current?.shortForecast
     val high = day?.highCelsius?.let(formatter::temperatureCompact) ?: missing
     val low = day?.lowCelsius?.let(formatter::temperatureCompact) ?: missing
     val windowEnd = now.plus(Duration.ofHours(AppConfig.TODAY_GRAPH_HOURS.toLong()))
@@ -108,7 +111,7 @@ fun TodayCard(
                             verticalArrangement = Arrangement.spacedBy(Dimens.tightGap),
                         ) {
                             Text(
-                                text = date.format(DateFormats.dayCard),
+                                text = date.format(DateFormats.dayCard()),
                                 style = MaterialTheme.typography.titleSmall,
                                 textAlign = TextAlign.Center,
                             )
@@ -135,7 +138,7 @@ fun TodayCard(
                     } else {
                         Box(Modifier.fillMaxSize().padding(Dimens.iconInset)) {
                             Text(
-                                text = date.format(DateFormats.dayCard),
+                                text = date.format(DateFormats.dayCard()),
                                 modifier = Modifier
                                     .align(Alignment.TopCenter)
                                     .fillMaxWidth()

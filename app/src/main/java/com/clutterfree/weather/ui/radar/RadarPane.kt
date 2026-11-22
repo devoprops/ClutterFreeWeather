@@ -351,7 +351,7 @@ fun RadarPane(
                         modifier = Modifier.weight(1f),
                     )
                     val frameTime = valid?.minus(Duration.ofMinutes(frameOffsetMinutes(frame)))
-                        ?.atZone(zone)?.format(DateFormats.clock)
+                        ?.atZone(zone)?.format(DateFormats.clock())
                     Text(
                         text = when {
                             unavailable -> stringResource(R.string.radar_unavailable)

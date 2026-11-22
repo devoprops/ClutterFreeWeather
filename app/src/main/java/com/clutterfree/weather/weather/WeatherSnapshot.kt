@@ -14,6 +14,8 @@ data class Observation(
     val observedAt: Instant?,
     val stationName: String?,
     val stationId: String? = null,
+    val stationLatitude: Double? = null,
+    val stationLongitude: Double? = null,
     val temperatureCelsius: Double?,
     val dewpointCelsius: Double?,
     val windSpeedMetersPerSecond: Double?,

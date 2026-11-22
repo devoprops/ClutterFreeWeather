@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -31,10 +32,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.runtime.remember
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.style.TextOverflow
 import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.ui.DateFormats
+import com.clutterfree.weather.ui.conditionLabel
 import androidx.compose.ui.unit.Dp
 import com.clutterfree.weather.ui.theme.Dimens
 import com.clutterfree.weather.ui.theme.scaledHeight
@@ -89,36 +96,47 @@ fun HourlyCard(
         civilDays(dayNight, hours, zone).flatMap { listOfNotNull(it.highCelsius, it.lowCelsius) },
     )
 
+    fun liveFor(period: ForecastPeriod): Observation? = observation?.takeIf {
+        it.iconUrl != null && !now.isBefore(period.start) && now.isBefore(period.end)
+    }
+    val statuses = upcoming.map { period ->
+        val live = liveFor(period)
+        conditionLabel(live?.iconUrl ?: period.iconUrl) ?: live?.textDescription ?: period.shortForecast.orEmpty()
+    }
+    val panelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = AppConfig.HOUR_PANEL_ALPHA)
+
     @Composable
-    fun HourIcon(index: Int, period: ForecastPeriod, iconModifier: Modifier) {
-        Box(iconModifier.padding(Dimens.hairline).background(dayBand(bandByIndex[index]))) {
+    fun HourIcon(index: Int, period: ForecastPeriod, iconModifier: Modifier, inPanel: Boolean = false) {
+        val outer = if (inPanel) iconModifier else iconModifier.padding(Dimens.hairline).background(dayBand(bandByIndex[index]))
+        Box(outer) {
             Box(
                 Modifier
                     .fillMaxSize()
                     .clip(shape)
                     .border(Dimens.hairline, MaterialTheme.colorScheme.outlineVariant, shape),
             ) {
-                val live = observation?.takeIf {
-                    it.iconUrl != null && !now.isBefore(period.start) && now.isBefore(period.end)
-                }
+                val live = liveFor(period)
+                val iconUrl = live?.iconUrl ?: period.iconUrl
                 WeatherIcon(
-                    iconUrl = live?.iconUrl ?: period.iconUrl,
+                    iconUrl = iconUrl,
                     at = live?.observedAt ?: period.start,
                     latitude = latitude,
                     longitude = longitude,
                     zone = zone,
-                    contentDescription = live?.textDescription ?: period.shortForecast,
+                    contentDescription = conditionLabel(iconUrl) ?: live?.textDescription ?: period.shortForecast,
                     modifier = Modifier.fillMaxSize().padding(Dimens.iconInset),
                 )
-                Text(
-                    text = period.temperatureCelsius?.let(formatter::temperatureCompact) ?: missing,
-                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
-                    style = MaterialTheme.typography.labelLarge,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (!inPanel) {
+                    Text(
+                        text = period.temperatureCelsius?.let(formatter::temperatureCompact) ?: missing,
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                        style = MaterialTheme.typography.labelLarge,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
@@ -131,13 +149,22 @@ fun HourlyCard(
             if (vertical) {
                 val density = LocalDensity.current
                 val hourStyle = MaterialTheme.typography.labelLarge
-                val dayStyle = MaterialTheme.typography.labelMedium
-                val minRow = maxOf(Dimens.verticalHourRow, dayStyle.scaledHeight(1) + hourStyle.scaledHeight(1))
+                val tempStyle = MaterialTheme.typography.titleMedium
+                val statusStyle = MaterialTheme.typography.labelMedium
+                val panelChrome = Dimens.hourPanelGap + Dimens.hourPanelPadding * 2
+                val minRow = maxOf(
+                    Dimens.verticalHourRow,
+                    hourStyle.scaledHeight(1) + tempStyle.scaledHeight(1) + statusStyle.scaledHeight(1) + panelChrome,
+                )
                 val heightPx = with(density) { plotHeight.toPx() }
                 val visible = (heightPx / with(density) { minRow.toPx() }).toInt().coerceIn(1, upcoming.size)
                 val rowPx = heightPx / visible
                 val rowDp = with(density) { rowPx.toDp() }
-                val columnWidth = maxOf(Dimens.verticalHourColumn, hourStyle.scaledWidth(6) + rowDp)
+                val iconSize = rowDp - panelChrome
+                val columnWidth = maxOf(
+                    Dimens.verticalHourColumn,
+                    hourStyle.scaledWidth(6) + iconSize + Dimens.hourPanelPadding * 2 + Dimens.tightGap,
+                )
                 val domainStart = if (rowPx < 1f) 0.0 else scroll.value / rowPx.toDouble()
                 val firstOfDay = runs.runningFold(0) { start, run -> start + run.count }.toSet()
                 val rows: @Composable () -> Unit = {
@@ -148,30 +175,50 @@ fun HourlyCard(
                             .verticalScroll(scroll),
                     ) {
                         upcoming.forEachIndexed { index, period ->
-                            Row(
-                                Modifier.height(rowDp).background(dayBand(bandByIndex[index])),
-                                verticalAlignment = Alignment.CenterVertically,
+                            val time = period.start.atZone(zone)
+                                .format(if (index in firstOfDay) DateFormats.dayHour() else DateFormats.hour())
+                            Box(
+                                Modifier
+                                    .height(rowDp)
+                                    .fillMaxWidth()
+                                    .background(dayBand(bandByIndex[index]))
+                                    .padding(vertical = Dimens.hourPanelGap / 2),
                             ) {
-                                Column(Modifier.weight(1f).padding(horizontal = Dimens.tightGap)) {
-                                    if (index in firstOfDay) {
+                                Row(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .clip(shape)
+                                        .background(panelColor)
+                                        .padding(Dimens.hourPanelPadding),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f).padding(end = Dimens.tightGap)) {
                                         Text(
-                                            text = period.start.atZone(zone).format(DateFormats.weekday),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.SemiBold,
+                                            text = time,
+                                            style = hourStyle,
+                                            fontWeight = if (index in firstOfDay) FontWeight.SemiBold else null,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            text = period.temperatureCelsius?.let(formatter::temperatureCompact) ?: missing,
+                                            style = tempStyle,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            text = statuses[index],
+                                            style = statusStyle,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Ellipsis,
                                         )
                                     }
-                                    Text(
-                                        text = period.start.atZone(zone).format(DateFormats.hour),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
+                                    HourIcon(index, period, Modifier.size(iconSize), inPanel = true)
                                 }
-                                HourIcon(index, period, Modifier.width(rowDp).height(rowDp))
                             }
                         }
                     }
@@ -211,7 +258,21 @@ fun HourlyCard(
                 val pad = Dimens.graphPadding
                 val density = LocalDensity.current
                 val innerPx = constraints.maxWidth - with(density) { (pad * 2).roundToPx() }
-                val minBoxPx = with(density) { MaterialTheme.typography.labelLarge.scaledHeight(2).toPx() }
+                val timeStyle = MaterialTheme.typography.labelMedium
+                val tempStyle = MaterialTheme.typography.titleSmall
+                val statusStyle = MaterialTheme.typography.labelSmall
+                val measurer = rememberTextMeasurer()
+                val times = upcoming.map { it.start.atZone(zone).format(DateFormats.hour()) }
+                val textPx = remember(statuses, times, statusStyle, timeStyle) {
+                    val statusPx = statuses.distinct().maxOfOrNull { twoLineWidth(measurer, it, statusStyle) } ?: 0
+                    val timePx = times.distinct().maxOfOrNull { measurer.measure(it, timeStyle).size.width } ?: 0
+                    maxOf(statusPx, timePx)
+                }
+                val chromePx = with(density) { (Dimens.hourPanelGap + Dimens.hourPanelPadding * 2).toPx() }
+                val minBoxPx = maxOf(
+                    with(density) { MaterialTheme.typography.labelLarge.scaledHeight(2).toPx() },
+                    textPx + chromePx,
+                )
                 val visible = minOf(
                     AppConfig.HOURLY_VISIBLE_HOURS,
                     upcoming.size,
@@ -232,7 +293,7 @@ fun HourlyCard(
                                         .background(dayBand(index)),
                                 ) {
                                     Text(
-                                        text = run.date.format(DateFormats.weekday),
+                                        text = run.date.format(DateFormats.weekday()),
                                         modifier = Modifier
                                             .align(Alignment.Center)
                                             .fillMaxWidth()
@@ -248,7 +309,51 @@ fun HourlyCard(
                         }
                         Row {
                             upcoming.forEachIndexed { index, period ->
-                                HourIcon(index, period, Modifier.width(boxDp).height(boxDp))
+                                Box(
+                                    Modifier
+                                        .width(boxDp)
+                                        .background(dayBand(bandByIndex[index]))
+                                        .padding(horizontal = Dimens.hourPanelGap / 2, vertical = Dimens.hourPanelGap),
+                                ) {
+                                    Column(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .clip(shape)
+                                            .background(panelColor)
+                                            .padding(Dimens.hourPanelPadding),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        Text(
+                                            text = times[index],
+                                            style = timeStyle,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        HourIcon(
+                                            index,
+                                            period,
+                                            Modifier.padding(vertical = Dimens.tightGap).size(boxDp - Dimens.hourPanelGap - Dimens.hourPanelPadding * 2),
+                                            inPanel = true,
+                                        )
+                                        Text(
+                                            text = period.temperatureCelsius?.let(formatter::temperatureCompact) ?: missing,
+                                            style = tempStyle,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            text = statuses[index],
+                                            style = statusStyle,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center,
+                                            minLines = 2,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
                             }
                         }
                         }
@@ -293,6 +398,16 @@ private fun dayBand(index: Int): Color {
     } else {
         palette?.bandOdd ?: scheme.surfaceContainerHighest
     }
+}
+
+private fun twoLineWidth(measurer: TextMeasurer, text: String, style: TextStyle): Int {
+    val full = measurer.measure(text, style, softWrap = false).size.width
+    val longestWord = text.split(' ').maxOf { measurer.measure(it, style, softWrap = false).size.width }
+    var width = maxOf(longestWord, (full + 1) / 2)
+    while (width < full && measurer.measure(text, style, constraints = Constraints(maxWidth = width)).lineCount > 2) {
+        width += longestWord / 4 + 1
+    }
+    return minOf(width, full)
 }
 
 private data class DayRun(val date: LocalDate, val count: Int)

@@ -64,7 +64,7 @@ fun WeatherIcon(
         sun != null && iconDarken(at, sun)
     }
     val phase = remember(at) { moonPhase(at) }
-    val overlayMoon = parsed.night && drawable != null && !drawable.first.startsWith("ic_wx_night")
+    val overlayMoon = parsed.night && drawable != null
 
     Box(modifier.semantics { this.contentDescription = description }) {
         if (drawable != null) {
