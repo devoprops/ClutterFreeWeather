@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.ui.DateFormats
 import com.clutterfree.weather.ui.conditionLabel
@@ -56,7 +57,6 @@ fun DayDetail(
         current?.takeIf { DetailItem.CURRENT_TEXT in details }
             ?.let { currentSummary(it, formatter) }
             ?.let { stringResource(R.string.detail_current, it) },
-        extendedSummary?.let { stringResource(R.string.detail_extended, it) },
         day.daytime?.narrative()
             ?.takeIf { !day.extended && DetailItem.DAY_TEXT in details }
             ?.let { stringResource(if (isToday) R.string.detail_today else R.string.detail_day, it) },
@@ -102,6 +102,18 @@ fun DayDetail(
                 text = day.date.format(DateFormats.detailDate()),
                 style = MaterialTheme.typography.titleMedium,
             )
+        }
+        if (day.extended) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.tightGap)) {
+                Text(
+                    text = stringResource(R.string.detail_extended),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                extendedSummary?.let { summary ->
+                    Text(text = summary, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
         }
         stories.forEach { text ->
             Text(text = text, style = MaterialTheme.typography.bodyMedium)

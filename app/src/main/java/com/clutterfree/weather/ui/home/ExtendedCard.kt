@@ -187,6 +187,7 @@ fun ExtendedCard(
                                 timeAt = { x -> timeAtDay(days, zone, x) },
                                 zone = zone,
                                 pastUntil = nowX,
+                                emptyAfter = days.indexOfFirst { it.extended }.takeIf { it >= 0 }?.toDouble(),
                                 plotHeight = plotHeight,
                                 vertical = vertical,
                                 leading = dayColumn.takeIf { vertical },

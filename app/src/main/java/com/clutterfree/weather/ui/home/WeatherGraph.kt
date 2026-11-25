@@ -112,6 +112,7 @@ fun WeatherGraph(
     timeAt: (Double) -> Instant,
     zone: ZoneId,
     pastUntil: Double? = null,
+    emptyAfter: Double? = null,
     plotHeight: Dp = Dimens.graphHeight,
     vertical: Boolean = false,
     leading: (@Composable () -> Unit)? = null,
@@ -123,6 +124,8 @@ fun WeatherGraph(
     val at = domainStart + fraction * span
     val series = plotSeries(graph, formatter)
     val time = DateFormats.clock().format(timeAt(at).atZone(zone))
+    val noData = stringResource(R.string.graph_no_data)
+    val extendedLabel = stringResource(R.string.graph_extended)
     val readout = buildList {
         add(time)
         series.filter { it.enabled }.forEach { item ->
@@ -153,6 +156,9 @@ fun WeatherGraph(
                     series = series,
                     temperatureCenterCelsius = temperatureCenterCelsius,
                     pastUntil = pastUntil,
+                    emptyAfter = emptyAfter,
+                    noData = noData,
+                    extendedLabel = extendedLabel,
                     vertical = true,
                     time = time,
                     readout = readout,
@@ -177,6 +183,9 @@ fun WeatherGraph(
             series = series,
             temperatureCenterCelsius = temperatureCenterCelsius,
             pastUntil = pastUntil,
+            emptyAfter = emptyAfter,
+            noData = noData,
+            extendedLabel = extendedLabel,
             vertical = false,
             time = time,
             readout = readout,
@@ -302,6 +311,9 @@ private fun GraphCanvas(
     series: List<PlottedSeries>,
     temperatureCenterCelsius: Double?,
     pastUntil: Double?,
+    emptyAfter: Double?,
+    noData: String,
+    extendedLabel: String,
     vertical: Boolean,
     time: String,
     readout: String,
@@ -316,6 +328,8 @@ private fun GraphCanvas(
     val tipStyle = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
     val timeColor = MaterialTheme.colorScheme.onSurface
     val pastOverlay = MaterialTheme.colorScheme.onSurface.copy(alpha = AppConfig.PAST_OVERLAY_ALPHA)
+    val noteColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val noteStyle = MaterialTheme.typography.labelMedium.copy(color = noteColor, textAlign = TextAlign.Center)
     val nightMode = isSystemInDarkTheme()
     val measurer = rememberTextMeasurer()
     Canvas(
@@ -447,6 +461,25 @@ private fun GraphCanvas(
         if (pastUntil != null) {
             val end = pastUntil.coerceAtMost(domainEnd)
             if (end > domainStart) fillAlong(domainStart, end, pastOverlay)
+        }
+        if (emptyAfter != null && emptyAfter < domainEnd) {
+            val start = emptyAfter.coerceAtLeast(domainStart)
+            val gap = Dimens.tightGap.toPx()
+            val title = measurer.measure(noData, noteStyle)
+            val subtitle = measurer.measure(extendedLabel, noteStyle)
+            val blockWidth = maxOf(title.size.width, subtitle.size.width).toFloat()
+            val blockHeight = title.size.height + gap + subtitle.size.height
+            val alongRoom = along(domainEnd) - along(start)
+            val acrossRoom = plotRight - plotLeft
+            val fits = if (vertical) alongRoom >= blockHeight && acrossRoom >= blockWidth else alongRoom >= blockWidth && acrossRoom >= blockHeight
+            if (start < domainEnd && fits) {
+                val midAlong = (along(start) + along(domainEnd)) / 2f
+                val midAcross = (plotLeft + plotRight) / 2f
+                val center = if (vertical) Offset(midAcross, midAlong) else Offset(midAlong, midAcross)
+                val top = center.y - blockHeight / 2f
+                drawText(title, topLeft = Offset(center.x - title.size.width / 2f, top))
+                drawText(subtitle, topLeft = Offset(center.x - subtitle.size.width / 2f, top + title.size.height + gap))
+            }
         }
         val scrubberAt = along(scrubberX)
         drawLine(

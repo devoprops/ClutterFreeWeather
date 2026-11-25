@@ -37,7 +37,9 @@
     <string name="current_humidity">humidity %1$s</string>
     <string name="detail_day">Day: %1$s</string>
     <string name="detail_night">Night: %1$s</string>
-    <string name="detail_extended">Extended: %1$s</string>
+    <string name="detail_extended">Extended Outlook</string>
+    <string name="graph_no_data">No data available</string>
+    <string name="graph_extended">Extended</string>
     <string name="detail_today">Today: %1$s</string>
     <string name="detail_tonight">Tonight: %1$s</string>
     <string name="detail_wind_chill">Wind chill %1$s</string>
