@@ -63,6 +63,35 @@ fun parseIconUrl(url: String?): ParsedIcon {
     )
 }
 
+/** Keeps the condition and swaps the day or night token. */
+fun withDaylight(url: String?, night: Boolean): String? {
+    if (url.isNullOrBlank()) return url
+    val token = if (night) "night" else "day"
+    val path = url.substringBefore("?")
+    val query = url.substringAfter("?", "").let { if (url.contains("?")) "?$it" else "" }
+    val segments = path.split("/").toMutableList()
+    val index = segments.indexOfFirst { it == "day" || it == "night" }
+    if (index < 0 || segments[index] == token) return url
+    segments[index] = token
+    return segments.joinToString("/") + query
+}
+
+/** True before sunrise and from sunset on. Null when the sun does not rise and set. */
+fun isNight(time: Instant, latitude: Double, longitude: Double, zone: ZoneId): Boolean? {
+    val sun = sunTimes(time.atZone(zone).toLocalDate(), latitude, longitude, zone) ?: return null
+    return time.isBefore(sun.sunrise) || !time.isBefore(sun.sunset)
+}
+
+/** The next sunrise or sunset after [time], looking through tomorrow morning. */
+fun nextDaylightChange(time: Instant, latitude: Double, longitude: Double, zone: ZoneId): Instant? {
+    val date = time.atZone(zone).toLocalDate()
+    val today = sunTimes(date, latitude, longitude, zone) ?: return null
+    val tomorrow = sunTimes(date.plusDays(1), latitude, longitude, zone)
+    return listOfNotNull(today.sunrise, today.sunset, tomorrow?.sunrise)
+        .filter { it.isAfter(time) }
+        .minOrNull()
+}
+
 fun iconCandidates(icon: ParsedIcon): List<String> {
     val resolved = resolvedCondition(icon.condition)
     val conditions = listOf(icon.condition, resolved).distinct()
@@ -148,6 +177,24 @@ fun compassPoint(degrees: Double): String {
 
 fun CivilDay.verboseForecast(): String =
     listOfNotNull(daytime?.narrative(), nighttime?.narrative()).joinToString("\n\n")
+
+fun needsFastRefresh(snapshot: WeatherSnapshot, now: Instant): Boolean {
+    if (snapshot.observation?.severeSpeci == true) return true
+    return snapshot.alerts.any { alert ->
+        val severity = alert.severity?.lowercase()
+        val severe = severity == "severe" || severity == "extreme"
+        severe && (alert.onset == null || !now.isBefore(alert.onset)) && (alert.ends == null || now.isBefore(alert.ends))
+    }
+}
+
+/** How long to wait before the next refresh so the report does not sit past the open interval. */
+fun refreshWait(fetchedAt: Instant?, fast: Boolean, now: Instant): Duration {
+    val minutes = if (fast) AppConfig.FAST_REFRESH_MINUTES else AppConfig.OPEN_REFRESH_MINUTES
+    val interval = Duration.ofMinutes(minutes)
+    if (fetchedAt == null) return interval
+    val age = Duration.between(fetchedAt, now).coerceAtLeast(Duration.ZERO)
+    return (interval.minus(age)).coerceAtLeast(Duration.ZERO)
+}
 
 fun rankedAlerts(alerts: List<WeatherAlert>): List<WeatherAlert> =
     alerts.sortedBy { alert ->

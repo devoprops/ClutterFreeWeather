@@ -69,6 +69,39 @@ class NwsParserTest {
     }
 
     @Test
+    fun parseObservationTreatsJsonNullIconAsMissing() {
+        val json = """{"properties":{"timestamp":"2026-11-22T15:15:00+00:00","textDescription":"","icon":null}}"""
+        val observation = NwsParser.parseObservation(json)
+
+        assertNull(observation.iconUrl)
+        assertNull(observation.textDescription)
+    }
+
+    @Test
+    fun parseObservationFallsBackToTheRawReport() {
+        val json = """{"properties":{"timestamp":"2026-11-22T15:15:00+00:00","icon":null,""" +
+            """"rawMessage":"KMDQ 221515Z AUTO 00000KT 3 1/2SM -RA BR BKN011 OVC024 14/12 A3005 RMK A02"}}"""
+        val day = StationLink("KMDQ", "Madison County", "https://example.test", latitude = 34.86, longitude = -86.56)
+
+        assertEquals("https://api.weather.gov/icons/land/day/rain", NwsParser.parseObservation(json, day).iconUrl)
+
+        val evening = json.replace("2026-11-22T15:15:00", "2026-11-23T01:15:00")
+        assertEquals("https://api.weather.gov/icons/land/night/rain", NwsParser.parseObservation(evening, day).iconUrl)
+    }
+
+    @Test
+    fun rawReportIsWindyAboveEighteenMph() {
+        fun observed(kilometersPerHour: Double) = NwsParser.parseObservation(
+            """{"properties":{"timestamp":"2026-11-22T15:15:00+00:00","icon":null,""" +
+                """"windSpeed":{"unitCode":"wmoUnit:km_h-1","value":$kilometersPerHour},""" +
+                """"rawMessage":"KMDQ 221515Z 25025KT 10SM BKN030 14/08 A3005"}}""",
+        ).iconUrl
+
+        assertEquals("https://api.weather.gov/icons/land/day/wind_bkn", observed(30.0))
+        assertEquals("https://api.weather.gov/icons/land/day/bkn", observed(28.0))
+    }
+
+    @Test
     fun parseAlertsKeepsOfficialText() {
         val alert = NwsParser.parseAlerts(fixture("nws-alerts.json")).single()
 

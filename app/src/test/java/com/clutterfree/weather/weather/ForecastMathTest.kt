@@ -54,6 +54,30 @@ class ForecastMathTest {
     }
 
     @Test
+    fun daylightSwapKeepsTheConditionAndQuery() {
+        val day = "https://api.weather.gov/icons/land/day/wind_bkn?size=medium"
+        assertEquals("https://api.weather.gov/icons/land/night/wind_bkn?size=medium", withDaylight(day, night = true))
+        assertEquals(day, withDaylight(day, night = false))
+        assertNull(withDaylight(null, night = true))
+    }
+
+    @Test
+    fun nightRunsUntilSunriseAndFromSunset() {
+        val zone = ZoneId.of("America/Chicago")
+        val latitude = 41.85
+        val longitude = -87.65
+        val sun = sunTimes(LocalDate.of(2026, 6, 21), latitude, longitude, zone)!!
+
+        assertEquals(false, isNight(sun.sunrise, latitude, longitude, zone))
+        assertEquals(true, isNight(sun.sunrise.minusSeconds(1), latitude, longitude, zone))
+        assertEquals(false, isNight(sun.sunset.minusSeconds(1), latitude, longitude, zone))
+        assertEquals(true, isNight(sun.sunset, latitude, longitude, zone))
+        assertEquals(sun.sunset, nextDaylightChange(sun.sunrise, latitude, longitude, zone))
+        val nextMorning = sunTimes(LocalDate.of(2026, 6, 22), latitude, longitude, zone)!!.sunrise
+        assertEquals(nextMorning, nextDaylightChange(sun.sunset, latitude, longitude, zone))
+    }
+
+    @Test
     fun morningAndEveningAreTheHourBesideSunriseAndSunset() {
         val sunrise = Instant.parse("2026-06-21T10:15:00Z")
         val sunset = Instant.parse("2026-06-22T01:29:00Z")
@@ -149,6 +173,24 @@ class ForecastMathTest {
     )
 
     @Test
+    fun fastRefreshStaysOnForASevereSpeciOrAnActiveAlert() {
+        val now = Instant.parse("2026-11-24T18:00:00Z")
+        assertTrue(needsFastRefresh(report(severeSpeci = true), now))
+        assertTrue(needsFastRefresh(report(alert = alert("1", "Severe", now.minusSeconds(60), now.plusSeconds(3600))), now))
+        assertFalse(needsFastRefresh(report(alert = alert("1", "Severe", now.minusSeconds(3600), now.minusSeconds(60))), now))
+        assertFalse(needsFastRefresh(report(alert = alert("1", "Minor", null, null)), now))
+    }
+
+    @Test
+    fun refreshWaitIsTheTimeLeftInTheInterval() {
+        val now = Instant.parse("2026-11-24T18:00:00Z")
+        val fetched = now.minus(Duration.ofMinutes(20))
+        assertEquals(Duration.ofMinutes(10), refreshWait(fetched, fast = false, now = now))
+        assertEquals(Duration.ZERO, refreshWait(fetched, fast = true, now = now))
+        assertEquals(Duration.ofMinutes(30), refreshWait(null, fast = false, now = now))
+    }
+
+    @Test
     fun compassPointRoundsToSixteenDirections() {
         assertEquals("N", compassPoint(0.0))
         assertEquals("N", compassPoint(355.0))
@@ -156,13 +198,35 @@ class ForecastMathTest {
         assertEquals("W", compassPoint(-90.0))
     }
 
-    private fun alert(id: String, severity: String) = WeatherAlert(
+    private fun report(severeSpeci: Boolean = false, alert: WeatherAlert? = null) = WeatherSnapshot(
+        fetchedAt = Instant.EPOCH,
+        observation = Observation(
+            observedAt = null,
+            stationName = null,
+            temperatureCelsius = null,
+            dewpointCelsius = null,
+            windSpeedMetersPerSecond = null,
+            windDirectionDegrees = null,
+            windGustMetersPerSecond = null,
+            heatIndexCelsius = null,
+            windChillCelsius = null,
+            relativeHumidityPercent = null,
+            textDescription = null,
+            iconUrl = null,
+            severeSpeci = severeSpeci,
+        ),
+        hourly = emptyList(),
+        dayNight = emptyList(),
+        alerts = listOfNotNull(alert),
+    )
+
+    private fun alert(id: String, severity: String, onset: Instant? = null, ends: Instant? = null) = WeatherAlert(
         id = id,
         event = severity,
         severity = severity,
         headline = severity,
-        onset = null,
-        ends = null,
+        onset = onset,
+        ends = ends,
         instruction = null,
         description = null,
     )

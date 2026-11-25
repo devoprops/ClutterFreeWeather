@@ -14,10 +14,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -39,7 +46,10 @@ import com.clutterfree.weather.weather.UnitFormatter
 import com.clutterfree.weather.weather.forecastTemperatureCenter
 import com.clutterfree.weather.weather.WeatherSnapshot
 import com.clutterfree.weather.weather.civilDays
+import com.clutterfree.weather.weather.isNight
+import com.clutterfree.weather.weather.nextDaylightChange
 import com.clutterfree.weather.weather.sunTimes
+import com.clutterfree.weather.weather.withDaylight
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -64,8 +74,10 @@ fun TodayCard(
     val day = days.firstOrNull { it.date == date } ?: days.firstOrNull()
     val current = snapshot.hourly.firstOrNull { !now.isBefore(it.start) && now.isBefore(it.end) }
     val temperature = snapshot.observation?.temperatureCelsius ?: current?.temperatureCelsius
-    val iconUrl = snapshot.observation?.iconUrl ?: current?.iconUrl
-    val iconAt = snapshot.observation?.observedAt ?: now
+    val daylight = rememberDaylight(latitude, longitude, zone)
+    val reportedIcon = snapshot.observation?.iconUrl ?: current?.iconUrl
+    val iconUrl = daylight.night?.let { withDaylight(reportedIcon, it) } ?: reportedIcon
+    val iconAt = daylight.now
     val description = conditionLabel(iconUrl)
         ?: snapshot.observation?.textDescription
         ?: current?.shortForecast
@@ -251,6 +263,29 @@ private fun TodayDetail(
         current = observation,
         modifier = Modifier.padding(Dimens.cardPadding),
     )
+}
+
+private data class Daylight(val now: Instant, val night: Boolean?)
+
+@Composable
+private fun rememberDaylight(latitude: Double, longitude: Double, zone: ZoneId): Daylight {
+    var now by remember { mutableStateOf(Instant.now()) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) now = Instant.now()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(latitude, longitude, zone, now) {
+        val next = nextDaylightChange(now, latitude, longitude, zone) ?: return@LaunchedEffect
+        val wait = Duration.between(Instant.now(), next).toMillis()
+        if (wait > 0) delay(wait)
+        val woken = Instant.now()
+        now = if (woken.isBefore(next)) next else woken
+    }
+    return Daylight(now, isNight(now, latitude, longitude, zone))
 }
 
 private fun axisLabels(now: Instant, zone: ZoneId): List<AxisLabel> {

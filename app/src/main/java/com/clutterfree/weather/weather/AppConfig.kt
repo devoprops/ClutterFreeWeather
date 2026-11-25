@@ -9,7 +9,9 @@ object AppConfig {
     const val TODAY_GRAPH_HOURS = 12
     const val TODAY_GRAPH_LEAD_HOURS = 1L
     const val TODAY_AXIS_STEP_HOURS = 3
-    const val CACHE_MINUTES = 30L
+    const val LAUNCH_REFRESH_MINUTES = 15L
+    const val OPEN_REFRESH_MINUTES = 30L
+    const val FAST_REFRESH_MINUTES = 10L
     const val PLACE_SUGGESTIONS = 8
     const val DETAIL_COLUMNS = 2
     const val NOON_HOUR = 12
@@ -26,6 +28,7 @@ object AppConfig {
     const val TEMPERATURE_PAD_FAHRENHEIT = 2.0
     const val WIND_SCALE_MPH = 40.0
     const val WIND_PAD_MPH = 2.0
+    const val WINDY_MPH = 18.0
     const val PERCENT_SCALE = 100.0
     const val TEMPERATURE_GRADIENT_STEPS = 32
     const val NIGHT_BAND_ALPHA = 0.08f

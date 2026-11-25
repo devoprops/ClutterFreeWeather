@@ -37,11 +37,16 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
@@ -82,12 +87,18 @@ import com.clutterfree.weather.weather.WeatherAlert
 import com.clutterfree.weather.weather.WeatherRepository
 import com.clutterfree.weather.weather.WeatherSnapshot
 import com.clutterfree.weather.weather.milesBetween
+import com.clutterfree.weather.weather.needsFastRefresh
 import com.clutterfree.weather.weather.rankedAlerts
+import com.clutterfree.weather.weather.refreshWait
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.snapshotFlow
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -357,6 +368,43 @@ fun HomeScreen(repository: WeatherRepository) {
                 }
             }
             if (ticket == generation.get()) refreshing = false
+        }
+    }
+
+    val currentSnapshot = rememberUpdatedState(snapshot)
+    val currentPlace = rememberUpdatedState(place)
+    val currentRefreshing = rememberUpdatedState(refreshing)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        var opened = false
+        val observer = LifecycleEventObserver { _, event ->
+            if (event != Lifecycle.Event.ON_START) return@LifecycleEventObserver
+            if (!opened) {
+                opened = true
+                return@LifecycleEventObserver
+            }
+            val fetched = currentSnapshot.value?.fetchedAt ?: return@LifecycleEventObserver
+            if (currentPlace.value == null) return@LifecycleEventObserver
+            val age = Duration.between(fetched, Instant.now())
+            if (age.isNegative || age >= Duration.ofMinutes(AppConfig.LAUNCH_REFRESH_MINUTES)) refresh()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(place?.displayName) {
+        if (place == null) return@LaunchedEffect
+        while (isActive) {
+            val latest = currentSnapshot.value
+            val fast = latest != null && needsFastRefresh(latest, Instant.now())
+            val wait = refreshWait(latest?.fetchedAt, fast, Instant.now())
+            if (!wait.isZero) delay(wait.toMillis())
+            if (!isActive || currentPlace.value == null) return@LaunchedEffect
+            val before = currentSnapshot.value?.fetchedAt
+            refresh()
+            snapshotFlow { currentRefreshing.value }.first { !it }
+            if (currentSnapshot.value?.fetchedAt == before) {
+                delay(Duration.ofMinutes(if (fast) AppConfig.FAST_REFRESH_MINUTES else AppConfig.OPEN_REFRESH_MINUTES).toMillis())
+            }
         }
     }
 

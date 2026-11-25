@@ -1,13 +1,17 @@
 package com.clutterfree.weather.data
 
+import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.ForecastPeriod
+import com.clutterfree.weather.weather.Measures
 import com.clutterfree.weather.weather.Observation
 import com.clutterfree.weather.weather.Place
 import com.clutterfree.weather.weather.WeatherAlert
+import com.clutterfree.weather.weather.sunTimes
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
 import java.time.OffsetDateTime
+import java.time.ZoneOffset
 
 object NwsParser {
     fun parsePlace(
@@ -50,7 +54,7 @@ object NwsParser {
         val point = if (coordinates != null && coordinates.length() >= 2) coordinates else null
         return StationLink(
             id = stationUrl.substringAfterLast('/').ifBlank { null },
-            name = properties.optString("name").ifBlank { null },
+            name = properties.text("name"),
             observationUrl = "$stationUrl/observations/latest",
             latitude = point?.optDouble(1)?.takeUnless { it.isNaN() },
             longitude = point?.optDouble(0)?.takeUnless { it.isNaN() },
@@ -59,23 +63,48 @@ object NwsParser {
 
     fun parseObservation(json: String, station: StationLink? = null): Observation {
         val properties = JSONObject(json).getJSONObject("properties")
+        val observedAt = instant(properties.text("timestamp"))
+        val windSpeed = metersPerSecond(properties.optJSONObject("windSpeed"))
+        val raw = properties.text("rawMessage")
         return Observation(
-            observedAt = instant(properties.optString("timestamp")),
+            observedAt = observedAt,
             stationName = station?.name,
             stationId = station?.id,
             stationLatitude = station?.latitude,
             stationLongitude = station?.longitude,
             temperatureCelsius = celsius(properties.optJSONObject("temperature")),
             dewpointCelsius = celsius(properties.optJSONObject("dewpoint")),
-            windSpeedMetersPerSecond = metersPerSecond(properties.optJSONObject("windSpeed")),
+            windSpeedMetersPerSecond = windSpeed,
             windDirectionDegrees = degrees(properties.optJSONObject("windDirection")),
             windGustMetersPerSecond = metersPerSecond(properties.optJSONObject("windGust")),
             heatIndexCelsius = celsius(properties.optJSONObject("heatIndex")),
             windChillCelsius = celsius(properties.optJSONObject("windChill")),
             relativeHumidityPercent = percent(properties.optJSONObject("relativeHumidity")),
-            textDescription = properties.optString("textDescription").ifBlank { null },
-            iconUrl = properties.optString("icon").ifBlank { null },
+            textDescription = properties.text("textDescription"),
+            iconUrl = properties.text("icon") ?: metarIconUrl(raw, observedAt, windSpeed, station),
+            severeSpeci = raw?.let(::severeSpeci) == true,
         )
+    }
+
+    private fun metarIconUrl(
+        raw: String?,
+        observedAt: Instant?,
+        windMetersPerSecond: Double?,
+        station: StationLink?,
+    ): String? {
+        val sky = raw?.let(::metarCondition) ?: return null
+        val windy = windMetersPerSecond != null &&
+            windMetersPerSecond * Measures.MPH_PER_METER_PER_SECOND > AppConfig.WINDY_MPH
+        val condition = if (windy) "wind_$sky" else sky
+        val latitude = station?.latitude
+        val longitude = station?.longitude
+        val sun = if (observedAt != null && latitude != null && longitude != null) {
+            sunTimes(observedAt.atZone(ZoneOffset.UTC).toLocalDate(), latitude, longitude, ZoneOffset.UTC)
+        } else {
+            null
+        }
+        val night = sun != null && (observedAt!!.isBefore(sun.sunrise) || !observedAt.isBefore(sun.sunset))
+        return "$NWS_ICON_BASE/${if (night) "night" else "day"}/$condition"
     }
 
     fun parseAlerts(json: String): List<WeatherAlert> {
@@ -84,8 +113,8 @@ object NwsParser {
     }
 
     private fun period(json: JSONObject): ForecastPeriod? {
-        val start = instant(json.optString("startTime")) ?: return null
-        val end = instant(json.optString("endTime")) ?: return null
+        val start = instant(json.text("startTime")) ?: return null
+        val end = instant(json.text("endTime")) ?: return null
         val wind = windText(json.optString("windSpeed"))
         val precipitation = json.optJSONObject("probabilityOfPrecipitation")
         return ForecastPeriod(
@@ -95,13 +124,13 @@ object NwsParser {
             temperatureCelsius = periodTemperature(json),
             windSpeedMetersPerSecond = wind?.lowMetersPerSecond,
             windSpeedHighMetersPerSecond = wind?.highMetersPerSecond,
-            windDirection = json.optString("windDirection").ifBlank { null },
-            shortForecast = json.optString("shortForecast").ifBlank { null },
+            windDirection = json.text("windDirection"),
+            shortForecast = json.text("shortForecast"),
             precipitationProbabilityPercent = percent(precipitation),
-            iconUrl = json.optString("icon").ifBlank { null },
+            iconUrl = json.text("icon"),
             relativeHumidityPercent = percent(json.optJSONObject("relativeHumidity")),
             dewpointCelsius = celsius(json.optJSONObject("dewpoint")),
-            detailedForecast = json.optString("detailedForecast").ifBlank { null },
+            detailedForecast = json.text("detailedForecast"),
         )
     }
 
@@ -111,13 +140,13 @@ object NwsParser {
         if (id.isBlank()) return null
         return WeatherAlert(
             id = id,
-            event = properties.optString("event").ifBlank { null },
-            severity = properties.optString("severity").ifBlank { null },
-            headline = properties.optString("headline").ifBlank { null },
-            onset = instant(properties.optString("onset")),
-            ends = instant(properties.optString("ends")),
-            instruction = properties.optString("instruction").ifBlank { null },
-            description = properties.optString("description").ifBlank { null },
+            event = properties.text("event"),
+            severity = properties.text("severity"),
+            headline = properties.text("headline"),
+            onset = instant(properties.text("onset")),
+            ends = instant(properties.text("ends")),
+            instruction = properties.text("instruction"),
+            description = properties.text("description"),
         )
     }
 
@@ -188,6 +217,10 @@ object NwsParser {
         else -> throw IllegalArgumentException("Unknown wind unit $unit")
     }
 
+    /** Android's optString returns the word "null" for a JSON null. */
+    private fun JSONObject.text(name: String): String? =
+        if (isNull(name)) null else optString(name).ifBlank { null }
+
     private fun instant(text: String?): Instant? {
         if (text.isNullOrBlank()) return null
         return OffsetDateTime.parse(text).toInstant()
@@ -203,6 +236,7 @@ object NwsParser {
         RegexOption.IGNORE_CASE,
     )
 
+    private const val NWS_ICON_BASE = "https://api.weather.gov/icons/land"
     private const val MPH_TO_METERS_PER_SECOND = 0.44704
     private const val KNOTS_TO_METERS_PER_SECOND = 0.514444
 }

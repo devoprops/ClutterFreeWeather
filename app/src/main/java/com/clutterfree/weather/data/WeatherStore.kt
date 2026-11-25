@@ -315,6 +315,7 @@ class WeatherStore(private val directory: File) {
         relativeHumidityPercent = optionalDouble(json, "relativeHumidityPercent"),
         textDescription = optionalString(json, "textDescription"),
         iconUrl = optionalString(json, "iconUrl"),
+        severeSpeci = json.optBoolean("severeSpeci", false),
     )
 
     private fun observationJson(observation: Observation): JSONObject = JSONObject()
@@ -333,6 +334,7 @@ class WeatherStore(private val directory: File) {
         .putNullable("relativeHumidityPercent", observation.relativeHumidityPercent)
         .putNullable("textDescription", observation.textDescription)
         .putNullable("iconUrl", observation.iconUrl)
+        .put("severeSpeci", observation.severeSpeci)
 
     private fun alerts(array: JSONArray?): List<WeatherAlert> {
         if (array == null) return emptyList()

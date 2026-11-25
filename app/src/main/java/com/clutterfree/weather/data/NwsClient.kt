@@ -2,7 +2,7 @@ package com.clutterfree.weather.data
 
 import java.util.Locale
 
-class NwsClient(private val http: TextHttp = TextHttp()) {
+class NwsClient(private val http: TextSource = TextHttp()) {
     fun points(latitude: Double, longitude: Double): NwsDocument {
         val url = String.format(Locale.US, "https://api.weather.gov/points/%.4f,%.4f", latitude, longitude)
         return get(url)
@@ -24,7 +24,7 @@ class NwsClient(private val http: TextHttp = TextHttp()) {
     }
 
     companion object {
-        const val USER_AGENT = "ClutterFreeWeather (https://github.com/devoprops/ClutterFreeWeather)"
+        const val USER_AGENT = "(ClutterFreeWeather, noahmagnuson@gmail.com)"
 
         private val NWS_HEADERS = mapOf(
             "User-Agent" to USER_AGENT,

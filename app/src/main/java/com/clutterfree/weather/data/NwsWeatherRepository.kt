@@ -20,7 +20,7 @@ class NwsWeatherRepository(
     private val http: TextHttp = TextHttp(),
     private val now: () -> Instant = Instant::now,
 ) : WeatherRepository {
-    private val nws = NwsClient(http)
+    private val nws = NwsClient(CachingHttp(File(directory, HTTP_CACHE_DIR), http, now))
     private val store = WeatherStore(directory)
 
     override fun choosePlace(displayName: String, latitude: Double, longitude: Double): SearchResult {
@@ -118,7 +118,7 @@ class NwsWeatherRepository(
 
     private fun isStale(snapshot: WeatherSnapshot): Boolean {
         val age = Duration.between(snapshot.fetchedAt, now())
-        return age.isNegative || age >= STALE_AFTER
+        return age.isNegative || age >= Duration.ofMinutes(AppConfig.LAUNCH_REFRESH_MINUTES)
     }
 
     private fun resolveAgain(place: Place): Place? {
@@ -213,7 +213,7 @@ class NwsWeatherRepository(
     }
 
     private companion object {
-        val STALE_AFTER: Duration = Duration.ofMinutes(AppConfig.CACHE_MINUTES)
+        const val HTTP_CACHE_DIR = "http-cache"
         const val WEATHER_UNAVAILABLE = "Weather service is unavailable."
     }
 }

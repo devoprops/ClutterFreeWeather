@@ -26,6 +26,7 @@ data class Observation(
     val relativeHumidityPercent: Double?,
     val textDescription: String?,
     val iconUrl: String?,
+    val severeSpeci: Boolean = false,
 )
 
 data class ForecastPeriod(
