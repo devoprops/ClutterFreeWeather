@@ -43,15 +43,25 @@ fun DayDetail(
     val formatter = UnitFormatter(units)
     val missing = stringResource(R.string.missing)
     val sun = sunTimes(day.date, latitude, longitude, zone)
+    val extendedSummary = if (day.extended) {
+        val condition = conditionLabel(day.daytime?.iconUrl)
+        val amount = day.precipitationMillimeters
+            ?.takeIf { it >= Measures.MILLIMETERS_PER_INCH / 20.0 }
+            ?.let(formatter::precipitation)
+        listOfNotNull(condition, amount).joinToString(", ").ifBlank { null }
+    } else {
+        null
+    }
     val stories = listOfNotNull(
         current?.takeIf { DetailItem.CURRENT_TEXT in details }
             ?.let { currentSummary(it, formatter) }
             ?.let { stringResource(R.string.detail_current, it) },
+        extendedSummary?.let { stringResource(R.string.detail_extended, it) },
         day.daytime?.narrative()
-            ?.takeIf { DetailItem.DAY_TEXT in details }
+            ?.takeIf { !day.extended && DetailItem.DAY_TEXT in details }
             ?.let { stringResource(if (isToday) R.string.detail_today else R.string.detail_day, it) },
         day.nighttime?.narrative()
-            ?.takeIf { DetailItem.NIGHT_TEXT in details }
+            ?.takeIf { !day.extended && DetailItem.NIGHT_TEXT in details }
             ?.let { stringResource(if (isToday) R.string.detail_tonight else R.string.detail_night, it) },
     )
     val windPeriod = day.daytime ?: day.nighttime

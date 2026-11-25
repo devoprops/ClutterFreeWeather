@@ -6,7 +6,7 @@ Answers below match the app as of the forecast data layer. Nothing here is colle
 
 ## Security questions
 
-- Data is encrypted in transit. National Weather Service and Iowa Environmental Mesonet calls use HTTPS.
+- Data is encrypted in transit. National Weather Service, Iowa Environmental Mesonet, and Cloudflare R2 calls use HTTPS.
 - Data is not encrypted by the app at rest. The place and forecast snapshot sit in app-private files.
 - There is no account and no server copy. Uninstalling, or clearing the app's storage, deletes the places and snapshot. Each saved city except the current one can be deleted in the city panel.
 
@@ -35,7 +35,7 @@ Radar tiles are held in memory only while the app runs and are not written to di
 
 ## Not collected
 
-- The device IP as something the app reads. Both weather servers see that IP on the connection, and the radar tiles show the area being viewed; confirm while filling the form whether Play wants either listed as approximate location shared with a third party. The device's own approximate location is a separate section below.
+- The device IP as something the app reads. The weather servers and Cloudflare see that IP on the connection, and the radar tiles show the area being viewed; confirm while filling the form whether Play wants either listed as approximate location shared with a third party. The device's own approximate location is a separate section below. The extended-forecast request sends no city or coordinates.
 - Device or advertising ID. The `User-Agent` sent to both servers is the app name and a contact email, not a per-user id.
 - Name, email, phone, photos, contacts, messages, files, audio, calendar, health, financial info, web history, or app activity
 - Crash logs, diagnostics, or analytics
@@ -48,6 +48,12 @@ Collected only after the user agrees. Read again on a later visit while that per
 Purpose: app functionality. Ephemeral.
 
 This is a Play location declaration for the user to file. Approximate location, collected, not shared as the raw device point.
+
+## Extended forecast
+
+One national file from Cloudflare R2, downloaded when the app opens and the saved copy is outside the file's cache window. The request sends no city, coordinates, or place name. The file stays in app-private storage. A failed download keeps the previous file. There is no background poll.
+
+Purpose: app functionality.
 
 ## Add a section when these are built
 

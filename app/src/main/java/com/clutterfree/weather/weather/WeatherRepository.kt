@@ -19,6 +19,11 @@ interface WeatherRepository {
 
     fun load(): LoadResult
 
+    /** Download the national extended file when the saved copy is outside its cache window. */
+    fun ensureExtendedForecast()
+
+    fun extendedDays(timeZone: String, latitude: Double, longitude: Double): List<ExtendedDay>
+
     fun displayUnits(): DisplayUnits
 
     fun setDisplayUnits(units: DisplayUnits)

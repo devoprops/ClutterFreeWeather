@@ -43,11 +43,14 @@ import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.Measures
 import com.clutterfree.weather.weather.CivilDay
 import com.clutterfree.weather.weather.DisplayUnits
+import com.clutterfree.weather.weather.ExtendedDay
 import com.clutterfree.weather.weather.ForecastPeriod
 import com.clutterfree.weather.weather.HomeSettings
 import com.clutterfree.weather.weather.UnitFormatter
 import com.clutterfree.weather.weather.civilDays
 import com.clutterfree.weather.weather.forecastTemperatureCenter
+import com.clutterfree.weather.weather.mergeExtendedDays
+import com.clutterfree.weather.weather.toCivilDay
 import com.clutterfree.weather.weather.sunTimes
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.Duration
@@ -66,13 +69,17 @@ fun ExtendedCard(
     units: DisplayUnits,
     settings: HomeSettings,
     now: Instant,
+    extendedDays: List<ExtendedDay> = emptyList(),
     showTitle: Boolean,
     plotHeight: Dp,
     vertical: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val today = now.atZone(zone).toLocalDate()
-    val days = civilDays(dayNight, hourly, zone).filter { !it.date.isBefore(today) }
+    val days = mergeExtendedDays(
+        civilDays(dayNight, hourly, zone),
+        extendedDays.map { it.toCivilDay(zone) },
+    ).filter { !it.date.isBefore(today) }
     if (days.isEmpty()) return
     val formatter = UnitFormatter(units)
     val missing = stringResource(R.string.missing)

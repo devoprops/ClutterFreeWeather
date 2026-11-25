@@ -74,6 +74,7 @@ import com.clutterfree.weather.ui.radar.RadarPane
 import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.ChartOrientation
 import com.clutterfree.weather.weather.DisplayUnits
+import com.clutterfree.weather.weather.ExtendedDay
 import com.clutterfree.weather.weather.ForecastPeriod
 import com.clutterfree.weather.weather.HomeCard
 import com.clutterfree.weather.weather.HomeSettings
@@ -112,6 +113,7 @@ fun HomeScreen(repository: WeatherRepository) {
     var place by remember { mutableStateOf<Place?>(null) }
     var saved by remember { mutableStateOf<List<Place>>(emptyList()) }
     var snapshot by remember { mutableStateOf<WeatherSnapshot?>(null) }
+    var extendedDays by remember { mutableStateOf<List<ExtendedDay>>(emptyList()) }
     var units by remember { mutableStateOf(DisplayUnits()) }
     var settings by remember { mutableStateOf(HomeSettings()) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -241,7 +243,32 @@ fun HomeScreen(repository: WeatherRepository) {
         }
     }
 
+    val extendedPlace = rememberUpdatedState(place)
+
+    fun loadExtendedOutlook() {
+        val target = extendedPlace.value ?: return
+        scope.launch {
+            val days = withContext(Dispatchers.IO) {
+                repository.extendedDays(target.timeZone, target.latitude, target.longitude)
+            }
+            if (extendedPlace.value?.displayName == target.displayName) extendedDays = days
+        }
+    }
+
+    fun ensureExtended() {
+        scope.launch {
+            withContext(Dispatchers.IO) { repository.ensureExtendedForecast() }
+            loadExtendedOutlook()
+        }
+    }
+
+    LaunchedEffect(place?.displayName) {
+        extendedDays = emptyList()
+        loadExtendedOutlook()
+    }
+
     LaunchedEffect(Unit) {
+        ensureExtended()
         readDevice()
         placeIndex = withContext(Dispatchers.IO) {
             context.assets.open("us_places.txt").use { UsPlaceIndex.load(it) }
@@ -383,6 +410,7 @@ fun HomeScreen(repository: WeatherRepository) {
                 opened = true
                 return@LifecycleEventObserver
             }
+            ensureExtended()
             val fetched = currentSnapshot.value?.fetchedAt ?: return@LifecycleEventObserver
             if (currentPlace.value == null) return@LifecycleEventObserver
             val age = Duration.between(fetched, Instant.now())
@@ -429,6 +457,7 @@ fun HomeScreen(repository: WeatherRepository) {
     HomeContent(
         place = place,
         snapshot = snapshot,
+        extendedDays = extendedDays,
         units = units,
         settings = settings,
         now = Instant.now(),
@@ -532,6 +561,7 @@ fun HomeScreen(repository: WeatherRepository) {
 private fun HomeContent(
     place: Place?,
     snapshot: WeatherSnapshot?,
+    extendedDays: List<ExtendedDay> = emptyList(),
     units: DisplayUnits,
     settings: HomeSettings,
     now: Instant,
@@ -574,7 +604,11 @@ private fun HomeContent(
         iconUrl = snapshot?.observation?.iconUrl
             ?: snapshot?.hourly?.firstOrNull { !now.isBefore(it.start) && now.isBefore(it.end) }?.iconUrl,
     )
-    val cards = if (place != null && snapshot != null) ForecastCards(place, snapshot, units, settings, now, zone) else null
+    val cards = if (place != null && snapshot != null) {
+        ForecastCards(place, snapshot, extendedDays, units, settings, now, zone)
+    } else {
+        null
+    }
     var selectedTab by rememberSaveable { mutableStateOf(HomeCard.TODAY.name) }
     val cardState = rememberSaveableStateHolder()
 
@@ -816,6 +850,7 @@ private fun Header(
 private class ForecastCards(
     private val place: Place,
     private val snapshot: WeatherSnapshot,
+    private val extendedDays: List<ExtendedDay>,
     private val units: DisplayUnits,
     private val settings: HomeSettings,
     private val now: Instant,
@@ -858,6 +893,7 @@ private class ForecastCards(
                 units = units,
                 settings = settings,
                 now = now,
+                extendedDays = extendedDays,
                 showTitle = showTitle,
                 plotHeight = plotHeight,
                 vertical = vertical,

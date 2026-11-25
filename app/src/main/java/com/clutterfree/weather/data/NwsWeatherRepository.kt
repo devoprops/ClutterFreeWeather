@@ -2,6 +2,7 @@ package com.clutterfree.weather.data
 
 import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.DisplayUnits
+import com.clutterfree.weather.weather.ExtendedDay
 import com.clutterfree.weather.weather.mergeElapsedToday
 import com.clutterfree.weather.weather.HomeSettings
 import com.clutterfree.weather.weather.LoadResult
@@ -21,6 +22,7 @@ class NwsWeatherRepository(
     private val now: () -> Instant = Instant::now,
 ) : WeatherRepository {
     private val nws = NwsClient(CachingHttp(File(directory, HTTP_CACHE_DIR), http, now))
+    private val extended = ExtendedForecast(directory, http, now)
     private val store = WeatherStore(directory)
 
     override fun choosePlace(displayName: String, latitude: Double, longitude: Double): SearchResult {
@@ -92,6 +94,13 @@ class NwsWeatherRepository(
     }
 
     override fun snapshot(): WeatherSnapshot? = store.readSnapshot()
+
+    override fun ensureExtendedForecast() {
+        extended.ensure()
+    }
+
+    override fun extendedDays(timeZone: String, latitude: Double, longitude: Double): List<ExtendedDay> =
+        extended.daysFor(timeZone, latitude, longitude)
 
     override fun load(): LoadResult {
         if (store.readPlace() == null) return LoadResult.NoPlace

@@ -44,6 +44,19 @@ data class CivilDay(
     val humidityPercent: Double?,
     val daytime: ForecastPeriod?,
     val nighttime: ForecastPeriod?,
+    val extended: Boolean = false,
+    val precipitationMillimeters: Double? = null,
+)
+
+data class ExtendedDay(
+    val date: LocalDate,
+    val highFahrenheit: Int,
+    val lowFahrenheit: Int,
+    val precipHundredths: Int,
+    val humidityPercent: Int,
+    val windMph: Int,
+    val windFromDegrees: Int,
+    val condition: String,
 )
 
 fun parseIconUrl(url: String?): ParsedIcon {
@@ -177,6 +190,44 @@ fun compassPoint(degrees: Double): String {
 
 fun CivilDay.verboseForecast(): String =
     listOfNotNull(daytime?.narrative(), nighttime?.narrative()).joinToString("\n\n")
+
+/** Keeps a National Weather Service day when both sources have that date. */
+fun mergeExtendedDays(service: List<CivilDay>, extended: List<CivilDay>): List<CivilDay> {
+    val covered = service.map { it.date }.toSet()
+    return (service + extended.filter { it.date !in covered }).sortedBy { it.date }
+}
+
+fun ExtendedDay.toCivilDay(zone: ZoneId): CivilDay {
+    val noon = date.atTime(AppConfig.NOON_HOUR, 0).atZone(zone).toInstant()
+    val high = fahrenheitToCelsius(highFahrenheit.toDouble())
+    val low = fahrenheitToCelsius(lowFahrenheit.toDouble())
+    val period = ForecastPeriod(
+        start = noon,
+        end = noon.plus(Duration.ofHours(1)),
+        isDaytime = true,
+        temperatureCelsius = high,
+        windSpeedMetersPerSecond = windMph / Measures.MPH_PER_METER_PER_SECOND,
+        windSpeedHighMetersPerSecond = null,
+        windDirection = compassPoint(windFromDegrees.toDouble()),
+        shortForecast = null,
+        precipitationProbabilityPercent = null,
+        iconUrl = "https://api.weather.gov/icons/land/day/$condition",
+        relativeHumidityPercent = humidityPercent.toDouble(),
+    )
+    return CivilDay(
+        date = date,
+        highCelsius = high,
+        lowCelsius = low,
+        humidityPercent = humidityPercent.toDouble(),
+        daytime = period,
+        nighttime = null,
+        extended = true,
+        precipitationMillimeters = precipHundredths / 100.0 * Measures.MILLIMETERS_PER_INCH,
+    )
+}
+
+private fun fahrenheitToCelsius(fahrenheit: Double): Double =
+    (fahrenheit - Measures.FAHRENHEIT_OFFSET) / Measures.FAHRENHEIT_PER_CELSIUS
 
 fun needsFastRefresh(snapshot: WeatherSnapshot, now: Instant): Boolean {
     if (snapshot.observation?.severeSpeci == true) return true

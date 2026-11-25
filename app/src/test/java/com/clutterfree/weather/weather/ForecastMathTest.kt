@@ -9,6 +9,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlin.math.abs
 
 class ForecastMathTest {
@@ -219,6 +220,21 @@ class ForecastMathTest {
         dayNight = emptyList(),
         alerts = listOfNotNull(alert),
     )
+
+    @Test
+    fun extendedDaysKeepTheServiceDayAndFollowIt() {
+        val serviceDate = LocalDate.of(2026, 12, 1)
+        val later = LocalDate.of(2026, 12, 8)
+        val service = CivilDay(serviceDate, 10.0, 0.0, 40.0, null, null)
+        val same = ExtendedDay(serviceDate, 70, 40, 0, 50, 5, 180, "skc").toCivilDay(ZoneOffset.UTC)
+        val extra = ExtendedDay(later, 60, 30, 12, 70, 8, 220, "rain").toCivilDay(ZoneOffset.UTC)
+        val merged = mergeExtendedDays(listOf(service), listOf(same, extra))
+
+        assertEquals(listOf(serviceDate, later), merged.map { it.date })
+        assertFalse(merged[0].extended)
+        assertTrue(merged[1].extended)
+        assertEquals("https://api.weather.gov/icons/land/day/rain", merged[1].daytime?.iconUrl)
+    }
 
     private fun alert(id: String, severity: String, onset: Instant? = null, ends: Instant? = null) = WeatherAlert(
         id = id,

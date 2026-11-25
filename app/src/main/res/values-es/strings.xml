@@ -37,6 +37,7 @@
     <string name="current_humidity">humedad %1$s</string>
     <string name="detail_day">Día: %1$s</string>
     <string name="detail_night">Noche: %1$s</string>
+    <string name="detail_extended">Extendido: %1$s</string>
     <string name="detail_today">Hoy: %1$s</string>
     <string name="detail_tonight">Esta noche: %1$s</string>
     <string name="detail_wind_chill">Sensación por viento %1$s</string>

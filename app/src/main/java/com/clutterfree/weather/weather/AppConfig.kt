@@ -9,12 +9,16 @@ object AppConfig {
     const val TODAY_GRAPH_HOURS = 12
     const val TODAY_GRAPH_LEAD_HOURS = 1L
     const val TODAY_AXIS_STEP_HOURS = 3
+    const val EXTENDED_FORECAST_URL =
+        "https://pub-ca27a48323be4825bc625ad315ff6666.r2.dev/extended.json"
     const val LAUNCH_REFRESH_MINUTES = 15L
     const val OPEN_REFRESH_MINUTES = 30L
     const val FAST_REFRESH_MINUTES = 10L
     const val PLACE_SUGGESTIONS = 8
     const val DETAIL_COLUMNS = 2
     const val NOON_HOUR = 12
+    const val EXTENDED_GRID_DEGREES = 0.25
+    const val EXTENDED_MATCH_DEGREES = 0.5
     const val TWILIGHT_HOURS = 1L
     /** Font scale where overlaid labels give way to a stacked layout. 1.3 is the system's Large setting. */
     const val LARGE_FONT_SCALE = 1.3f
