@@ -1,5 +1,6 @@
 package com.clutterfree.weather.ui.home
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,9 +21,11 @@ import com.clutterfree.weather.weather.CivilDay
 import com.clutterfree.weather.weather.DetailItem
 import com.clutterfree.weather.weather.DisplayUnits
 import com.clutterfree.weather.weather.Measures
+import com.clutterfree.weather.weather.MoonPhase
 import com.clutterfree.weather.weather.Observation
 import com.clutterfree.weather.weather.UnitFormatter
 import com.clutterfree.weather.weather.compassPoint
+import com.clutterfree.weather.weather.moonPhase
 import com.clutterfree.weather.weather.narrative
 import com.clutterfree.weather.weather.sunTimes
 import java.time.ZoneId
@@ -79,6 +82,10 @@ fun DayDetail(
         if (DetailItem.SUNSET in details) {
             add(stringResource(R.string.detail_sunset, sun?.sunset?.atZone(zone)?.format(DateFormats.clock()) ?: missing))
         }
+        if (DetailItem.MOON in details) {
+            val phase = moonPhase(day.date.atTime(AppConfig.NOON_HOUR, 0).atZone(zone).toInstant())
+            add(stringResource(R.string.detail_moon, stringResource(moonPhaseLabel(phase))))
+        }
         if (showHighLow && DetailItem.HIGH in details) {
             add(stringResource(R.string.detail_high, day.highCelsius?.let(formatter::temperature) ?: missing))
         }
@@ -131,6 +138,18 @@ fun DayDetail(
             }
         }
     }
+}
+
+@StringRes
+private fun moonPhaseLabel(phase: MoonPhase): Int = when (phase) {
+    MoonPhase.NEW -> R.string.moon_new
+    MoonPhase.WAXING_CRESCENT -> R.string.moon_waxing_crescent
+    MoonPhase.FIRST_QUARTER -> R.string.moon_first_quarter
+    MoonPhase.WAXING_GIBBOUS -> R.string.moon_waxing_gibbous
+    MoonPhase.FULL -> R.string.moon_full
+    MoonPhase.WANING_GIBBOUS -> R.string.moon_waning_gibbous
+    MoonPhase.LAST_QUARTER -> R.string.moon_last_quarter
+    MoonPhase.WANING_CRESCENT -> R.string.moon_waning_crescent
 }
 
 @Composable

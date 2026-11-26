@@ -178,7 +178,6 @@ class WeatherStore(private val directory: File) {
             extendedVisibleDays = json.optInt("extendedVisibleDays", AppConfig.EXTENDED_VISIBLE_DAYS)
                 .coerceIn(AppConfig.EXTENDED_DAY_MIN, AppConfig.EXTENDED_DAY_MAX),
             radarMiles = json.optInt("radarMiles", AppConfig.RADAR_MILES).coerceAtLeast(1),
-            cardTheme = enumValue(json.optString("cardTheme"), HomeSettings().cardTheme),
             chartOrientation = enumValue(json.optString("chartOrientation"), HomeSettings().chartOrientation),
             suggestClosest = json.optBoolean("suggestClosest", true),
         )
@@ -217,7 +216,6 @@ class WeatherStore(private val directory: File) {
         .put("knownDetails", JSONArray().apply { DetailItem.entries.forEach { put(it.name) } })
         .put("extendedVisibleDays", home.extendedVisibleDays)
         .put("radarMiles", home.radarMiles)
-        .put("cardTheme", home.cardTheme.name)
         .put("chartOrientation", home.chartOrientation.name)
         .put("suggestClosest", home.suggestClosest)
 

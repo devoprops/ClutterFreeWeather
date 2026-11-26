@@ -13,7 +13,6 @@ data class HomeSettings(
     val details: Set<DetailItem> = DetailItem.entries.toSet(),
     val extendedVisibleDays: Int = AppConfig.EXTENDED_VISIBLE_DAYS,
     val radarMiles: Int = AppConfig.RADAR_MILES,
-    val cardTheme: CardTheme = CardTheme.PLAIN,
     val chartOrientation: ChartOrientation = ChartOrientation.AUTO,
     val suggestClosest: Boolean = true,
 )
@@ -48,12 +47,7 @@ enum class DetailItem {
     HUMIDITY,
     WIND,
     WIND_CHILL_HEAT_INDEX,
-}
-
-enum class CardTheme {
-    SEASONAL,
-    WEATHER,
-    PLAIN,
+    MOON,
 }
 
 enum class ChartOrientation {

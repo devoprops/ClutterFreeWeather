@@ -4,16 +4,12 @@ import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -115,9 +112,6 @@ fun RadarPane(
     }
     var frame by rememberSaveable { mutableIntStateOf(AppConfig.RADAR_FRAMES - 1) }
     var playing by rememberSaveable { mutableStateOf(false) }
-    var showRadar by rememberSaveable { mutableStateOf(true) }
-    var showCounties by rememberSaveable { mutableStateOf(true) }
-    var showTowns by rememberSaveable { mutableStateOf(true) }
     var valid by remember { mutableStateOf<Instant?>(null) }
     var unavailable by remember { mutableStateOf(false) }
     LaunchedEffect(place.displayName) { tiles.clear() }
@@ -144,7 +138,7 @@ fun RadarPane(
     }
     val needed by remember {
         derivedStateOf {
-            if (zoom.isNaN() || size == IntSize.Zero || !showRadar) return@derivedStateOf emptyList()
+            if (zoom.isNaN() || size == IntSize.Zero) return@derivedStateOf emptyList()
             val world = worldPx()
             val z = radarTileZoom(zoom)
             val cells = tilesCovering(
@@ -180,7 +174,7 @@ fun RadarPane(
         shadow = Shadow(color = MaterialTheme.colorScheme.surface, blurRadius = AppConfig.RADAR_LABEL_HALO_PX),
     )
 
-    Box(modifier) {
+    Box(modifier.clipToBounds()) {
         Canvas(
             Modifier
                 .fillMaxSize()
@@ -226,8 +220,7 @@ fun RadarPane(
             val maxX = (originX + this.size.width) / world
             val maxY = (originY + this.size.height) / world
 
-            if (showRadar) {
-                val z = radarTileZoom(zoom)
+            val z = radarTileZoom(zoom)
                 val tileSize = world / (1 shl z)
                 tilesCovering(z, minX, minY, maxX, maxY).forEach { (x, y) ->
                     val image = tiles[TileKey(frame, z, x, y)] ?: return@forEach
@@ -242,13 +235,11 @@ fun RadarPane(
                         alpha = AppConfig.RADAR_ALPHA,
                     )
                 }
-            }
 
             outlines?.let { map ->
                 val counties = Path()
                 val states = Path()
                 map.lines.forEach { line ->
-                    if (!line.state && !showCounties) return@forEach
                     if (line.maxX < minX || line.minX > maxX || line.maxY < minY || line.minY > maxY) return@forEach
                     val path = if (line.state) states else counties
                     val points = line.points
@@ -263,7 +254,7 @@ fun RadarPane(
                 drawPath(states, stateColor, style = Stroke(Dimens.radarStateLine.toPx()))
             }
 
-            if (showTowns && placeIndex != null) {
+            if (placeIndex != null) {
                 val placed = mutableListOf<Rect>()
                 val gap = Dimens.radarLabelGap.toPx()
                 placeIndex.within(
@@ -291,29 +282,17 @@ fun RadarPane(
             drawCircle(markerColor, Dimens.radarMarker.toPx(), home)
         }
 
-        Row(
-            Modifier
-                .align(Alignment.TopStart)
-                .fillMaxWidth()
-                .padding(Dimens.cardGap),
-            verticalAlignment = Alignment.CenterVertically,
+        Surface(
+            Modifier.align(Alignment.TopEnd).padding(Dimens.cardGap),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.background.copy(alpha = AppConfig.RADAR_TAB_ALPHA),
         ) {
-            Row(
-                Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(Dimens.cardGap),
-            ) {
-                FilterChip(showRadar, { showRadar = !showRadar }, { Text(stringResource(R.string.radar_layer_radar)) })
-                FilterChip(showCounties, { showCounties = !showCounties }, { Text(stringResource(R.string.radar_layer_counties)) })
-                FilterChip(showTowns, { showTowns = !showTowns }, { Text(stringResource(R.string.radar_layer_towns)) })
-            }
-            Surface(shape = MaterialTheme.shapes.extraLarge, tonalElevation = Dimens.hairline) {
-                IconButton(onClick = {
-                    centerX = homeX
-                    centerY = homeY
-                    if (size.width > 0) zoom = zoomForMiles(startMiles.toDouble(), place.latitude, size.width.toFloat())
-                }) {
-                    Icon(painterResource(R.drawable.ic_my_location), stringResource(R.string.radar_recenter, place.displayName))
-                }
+            IconButton(onClick = {
+                centerX = homeX
+                centerY = homeY
+                if (size.width > 0) zoom = zoomForMiles(startMiles.toDouble(), place.latitude, size.width.toFloat())
+            }) {
+                Icon(painterResource(R.drawable.ic_my_location), stringResource(R.string.radar_recenter, place.displayName))
             }
         }
 
@@ -323,7 +302,7 @@ fun RadarPane(
                 .fillMaxWidth()
                 .padding(Dimens.cardGap),
             shape = MaterialTheme.shapes.large,
-            tonalElevation = Dimens.hairline,
+            color = MaterialTheme.colorScheme.background.copy(alpha = AppConfig.RADAR_TAB_ALPHA),
         ) {
             Column(Modifier.padding(horizontal = Dimens.cardGap)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

@@ -9,10 +9,11 @@ class ThemeColor(val light: Color, val night: Color) {
 }
 
 object WeatherColors {
-    val rain = ThemeColor(Color(0xFF1565C0), Color(0xFF90CAF9))
+    val rain = ThemeColor(Color(0xFF0655BF), Color(0xFF267DF0))
     val wind = ThemeColor(Color(0xFF424242), Color(0xFFE0E0E0))
-    val humidity = ThemeColor(Color(0xFF00838F), Color(0xFF4DD0E1))
+    val humidity = ThemeColor(Color(0xFFBA77ED), Color(0xFFC898ED))
     val dewPoint = ThemeColor(Color(0xFF2E7D32), Color(0xFF81C784))
+    val pressure = ThemeColor(Color(0xFFEBF062), Color(0xFFE9F032))
 
     val coldPurple = ThemeColor(Color(0xFF4A148C), Color(0xFFE1BEE7))
     val royalBlue = ThemeColor(Color(0xFF1565C0), Color(0xFF90CAF9))
@@ -33,20 +34,6 @@ object WeatherColors {
     val bolt = Color(0xFFF0C84A)
     val fog = Color(0xFFB7C3CC)
     val moonLight = Color(0xFFF4F0E4)
-    val moonShade = Color(0xFF243040)
+    val moonShade = Color(0xFF3C495C)
     val iconDarken = Color.Black.copy(alpha = AppConfig.ICON_DARKEN_ALPHA)
-
-    val winter = Color(0xFF5C8FB8)
-    val spring = Color(0xFF5E9E5A)
-    val summer = Color(0xFFD9A23A)
-    val autumn = Color(0xFFC0702F)
-
-    val skyClear = Color(0xFF3F8AD8)
-    val skyPartly = Color(0xFF6E93BA)
-    val skyCloudy = Color(0xFF7F8B98)
-    val skyRain = Color(0xFF46658A)
-    val skySnow = Color(0xFF9EC0DE)
-    val skyStorm = Color(0xFF5B4B8A)
-    val skyFog = Color(0xFF959FA6)
-    val nightShade = Color(0xFF101828)
 }

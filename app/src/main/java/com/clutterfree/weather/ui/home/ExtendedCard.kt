@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -74,6 +75,7 @@ fun ExtendedCard(
     plotHeight: Dp,
     vertical: Boolean,
     modifier: Modifier = Modifier,
+    viewReset: Int = 0,
 ) {
     val today = now.atZone(zone).toLocalDate()
     val days = mergeExtendedDays(
@@ -94,6 +96,15 @@ fun ExtendedCard(
     var pinned by rememberSaveable { mutableStateOf<String?>(null) }
     var moved by rememberSaveable { mutableStateOf(false) }
     var savedFraction by rememberSaveable { mutableStateOf(0f) }
+    var appliedReset by rememberSaveable { mutableIntStateOf(viewReset) }
+    LaunchedEffect(viewReset) {
+        if (appliedReset == viewReset) return@LaunchedEffect
+        scroll.scrollTo(0)
+        pinned = null
+        moved = false
+        savedFraction = 0f
+        appliedReset = viewReset
+    }
     LaunchedEffect(scroll) {
         snapshotFlow { scroll.isScrollInProgress }
             .distinctUntilChanged()

@@ -37,7 +37,6 @@ import androidx.compose.ui.semantics.semantics
 import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.ui.theme.Dimens
 import com.clutterfree.weather.weather.AppConfig
-import com.clutterfree.weather.weather.CardTheme
 import com.clutterfree.weather.weather.ChartOrientation
 import com.clutterfree.weather.weather.DetailItem
 import com.clutterfree.weather.weather.DisplayUnits
@@ -88,13 +87,6 @@ fun SettingsPane(
         if (preview != null) {
             Section(R.string.settings_preview)
             preview()
-        }
-
-        Section(R.string.settings_appearance)
-        CardTheme.entries.forEach { theme ->
-            ChoiceRow(stringResource(themeLabel(theme)), settings.cardTheme == theme) {
-                onSettings(settings.copy(cardTheme = theme))
-            }
         }
 
         Section(R.string.settings_location)
@@ -358,13 +350,6 @@ private fun orientationLabel(orientation: ChartOrientation): Int = when (orienta
 }
 
 @StringRes
-private fun themeLabel(theme: CardTheme): Int = when (theme) {
-    CardTheme.SEASONAL -> R.string.theme_seasonal
-    CardTheme.WEATHER -> R.string.theme_weather
-    CardTheme.PLAIN -> R.string.theme_plain
-}
-
-@StringRes
 private fun detailLabel(item: DetailItem): Int = when (item) {
     DetailItem.CURRENT_TEXT -> R.string.detail_item_current_text
     DetailItem.WIND_CHILL_HEAT_INDEX -> R.string.detail_item_wind_chill_heat_index
@@ -376,4 +361,5 @@ private fun detailLabel(item: DetailItem): Int = when (item) {
     DetailItem.LOW -> R.string.detail_item_low
     DetailItem.HUMIDITY -> R.string.detail_item_humidity
     DetailItem.WIND -> R.string.detail_item_wind
+    DetailItem.MOON -> R.string.detail_item_moon
 }

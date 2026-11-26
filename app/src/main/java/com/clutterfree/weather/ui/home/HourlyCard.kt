@@ -17,12 +17,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -45,7 +46,6 @@ import com.clutterfree.weather.ui.conditionLabel
 import androidx.compose.ui.unit.Dp
 import com.clutterfree.weather.ui.theme.Dimens
 import com.clutterfree.weather.ui.theme.scaledHeight
-import com.clutterfree.weather.ui.theme.scaledWidth
 import com.clutterfree.weather.ui.theme.LocalCardPalette
 import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.DisplayUnits
@@ -76,6 +76,7 @@ fun HourlyCard(
     plotHeight: Dp,
     vertical: Boolean,
     modifier: Modifier = Modifier,
+    viewReset: Int = 0,
 ) {
     val upcoming = hours.filter { it.end.isAfter(now) }
     if (upcoming.isEmpty()) return
@@ -91,6 +92,15 @@ fun HourlyCard(
     }
     var moved by rememberSaveable { mutableStateOf(false) }
     var savedFraction by rememberSaveable { mutableStateOf(0f) }
+    var appliedReset by rememberSaveable { mutableIntStateOf(viewReset) }
+    val hourLabels = upcoming.map { it.start.atZone(zone).format(DateFormats.hourHeading()) }
+    LaunchedEffect(viewReset) {
+        if (appliedReset == viewReset) return@LaunchedEffect
+        scroll.scrollTo(0)
+        moved = false
+        savedFraction = 0f
+        appliedReset = viewReset
+    }
     val shape = RoundedCornerShape(Dimens.hourCorner)
     val temperatureCenter = forecastTemperatureCenter(
         civilDays(dayNight, hours, zone).flatMap { listOfNotNull(it.highCelsius, it.lowCelsius) },
@@ -161,12 +171,15 @@ fun HourlyCard(
                 val rowPx = heightPx / visible
                 val rowDp = with(density) { rowPx.toDp() }
                 val iconSize = rowDp - panelChrome
+                val measurer = rememberTextMeasurer()
+                val timeWidth = with(density) {
+                    hourLabels.maxOf { measurer.measure(it, hourStyle).size.width }.toDp()
+                }
                 val columnWidth = maxOf(
                     Dimens.verticalHourColumn,
-                    hourStyle.scaledWidth(6) + iconSize + Dimens.hourPanelPadding * 2 + Dimens.tightGap,
+                    timeWidth + iconSize + Dimens.hourPanelPadding * 2 + Dimens.tightGap,
                 )
                 val domainStart = if (rowPx < 1f) 0.0 else scroll.value / rowPx.toDouble()
-                val firstOfDay = runs.runningFold(0) { start, run -> start + run.count }.toSet()
                 val rows: @Composable () -> Unit = {
                     Column(
                         Modifier
@@ -175,8 +188,6 @@ fun HourlyCard(
                             .verticalScroll(scroll),
                     ) {
                         upcoming.forEachIndexed { index, period ->
-                            val time = period.start.atZone(zone)
-                                .format(if (index in firstOfDay) DateFormats.dayHour() else DateFormats.hour())
                             Box(
                                 Modifier
                                     .height(rowDp)
@@ -194,9 +205,8 @@ fun HourlyCard(
                                 ) {
                                     Column(Modifier.weight(1f).padding(end = Dimens.tightGap)) {
                                         Text(
-                                            text = time,
+                                            text = hourLabels[index],
                                             style = hourStyle,
-                                            fontWeight = if (index in firstOfDay) FontWeight.SemiBold else null,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Ellipsis,
@@ -262,7 +272,7 @@ fun HourlyCard(
                 val tempStyle = MaterialTheme.typography.titleSmall
                 val statusStyle = MaterialTheme.typography.labelSmall
                 val measurer = rememberTextMeasurer()
-                val times = upcoming.map { it.start.atZone(zone).format(DateFormats.hour()) }
+                val times = hourLabels
                 val textPx = remember(statuses, times, statusStyle, timeStyle) {
                     val statusPx = statuses.distinct().maxOfOrNull { twoLineWidth(measurer, it, statusStyle) } ?: 0
                     val timePx = times.distinct().maxOfOrNull { measurer.measure(it, timeStyle).size.width } ?: 0

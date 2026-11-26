@@ -55,6 +55,12 @@ One national file from Cloudflare R2, downloaded when the app opens and the save
 
 Purpose: app functionality.
 
+## Home screen widget
+
+While a widget is on the home screen, the saved city's forecast is requested about every 30 minutes. The job uses the stored place and its forecast links. It does not read the device location. National Weather Service requests on that schedule are the same ones the open app already makes: the forecast and observation links, and the alert request, which includes the saved city's latitude and longitude. A failed refresh keeps the previous forecast on the widget. Removing the last widget stops the schedule. The extended national file is not part of this job.
+
+Purpose: app functionality.
+
 ## Add a section when these are built
 
 - Alert notifications, if delivery is tied to the saved place.

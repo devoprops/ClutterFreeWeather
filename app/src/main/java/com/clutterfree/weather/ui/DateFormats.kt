@@ -12,7 +12,7 @@ object DateFormats {
 
     fun hour(): DateTimeFormatter = pattern("h a")
 
-    fun dayHour(): DateTimeFormatter = pattern("EEE h a")
+    fun hourHeading(): DateTimeFormatter = pattern("h a EEE d")
 
     fun clock(): DateTimeFormatter = pattern("h:mm a")
 

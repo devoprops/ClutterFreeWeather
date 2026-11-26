@@ -1,6 +1,5 @@
 package com.clutterfree.weather.data
 
-import com.clutterfree.weather.weather.CardTheme
 import com.clutterfree.weather.weather.DetailItem
 import com.clutterfree.weather.weather.ForecastPeriod
 import com.clutterfree.weather.weather.GraphSettings
@@ -51,7 +50,6 @@ class WeatherStoreTest {
                 details = setOf(DetailItem.SUNRISE),
                 extendedVisibleDays = 4,
                 radarMiles = 40,
-                cardTheme = CardTheme.WEATHER,
             ),
         )
 
@@ -66,7 +64,6 @@ class WeatherStoreTest {
         assertEquals(setOf(DetailItem.SUNRISE), home.details)
         assertEquals(4, home.extendedVisibleDays)
         assertEquals(40, home.radarMiles)
-        assertEquals(CardTheme.WEATHER, home.cardTheme)
         assertEquals(HomeCard.TODAY, home.cardOrder.first())
     }
 
@@ -82,7 +79,6 @@ class WeatherStoreTest {
             assertTrue(graph.humidity)
             assertFalse(graph.rainChance)
         }
-        assertEquals(CardTheme.PLAIN, home.cardTheme)
     }
 
     @Test
@@ -117,7 +113,10 @@ class WeatherStoreTest {
         )
         val store = WeatherStore(directory)
         val upgraded = store.readHome().details
-        assertEquals(setOf(DetailItem.SUNRISE, DetailItem.CURRENT_TEXT, DetailItem.WIND_CHILL_HEAT_INDEX), upgraded)
+        assertEquals(
+            setOf(DetailItem.SUNRISE, DetailItem.CURRENT_TEXT, DetailItem.WIND_CHILL_HEAT_INDEX, DetailItem.MOON),
+            upgraded,
+        )
 
         store.writeHome(store.readHome().copy(details = setOf(DetailItem.SUNRISE)))
         assertEquals(setOf(DetailItem.SUNRISE), store.readHome().details)

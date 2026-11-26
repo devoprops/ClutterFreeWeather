@@ -1,6 +1,7 @@
 package com.clutterfree.weather.ui.home
 
 import android.Manifest
+import android.app.Activity
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -40,6 +41,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -71,6 +73,7 @@ import com.clutterfree.weather.ui.theme.Dimens
 import com.clutterfree.weather.ui.theme.LocalCardPalette
 import com.clutterfree.weather.ui.theme.cardPalette
 import com.clutterfree.weather.ui.radar.RadarPane
+import com.clutterfree.weather.widget.updateWeatherWidgets
 import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.ChartOrientation
 import com.clutterfree.weather.weather.DisplayUnits
@@ -398,6 +401,11 @@ fun HomeScreen(repository: WeatherRepository) {
         }
     }
 
+    val widgetContext = LocalContext.current
+    LaunchedEffect(place?.displayName, snapshot?.fetchedAt) {
+        updateWeatherWidgets(widgetContext)
+    }
+
     val currentSnapshot = rememberUpdatedState(snapshot)
     val currentPlace = rememberUpdatedState(place)
     val currentRefreshing = rememberUpdatedState(refreshing)
@@ -597,15 +605,10 @@ private fun HomeContent(
     }
     val selected = snapshot?.alerts?.firstOrNull { it.id == selectedAlertId }
     val zone = place?.let { runCatching { ZoneId.of(it.timeZone) }.getOrNull() } ?: ZoneId.systemDefault()
-    val palette = cardPalette(
-        scheme = MaterialTheme.colorScheme,
-        theme = settings.cardTheme,
-        date = now.atZone(zone).toLocalDate(),
-        iconUrl = snapshot?.observation?.iconUrl
-            ?: snapshot?.hourly?.firstOrNull { !now.isBefore(it.start) && now.isBefore(it.end) }?.iconUrl,
-    )
+    val viewReset = rememberViewReset()
+    val palette = cardPalette(MaterialTheme.colorScheme)
     val cards = if (place != null && snapshot != null) {
-        ForecastCards(place, snapshot, extendedDays, units, settings, now, zone)
+        ForecastCards(place, snapshot, extendedDays, units, settings, now, zone, viewReset)
     } else {
         null
     }
@@ -709,14 +712,17 @@ private fun HomeContent(
                             }
                         }
                     }
-                    else -> Column(Modifier.fillMaxSize()) {
+                    else -> Column(Modifier.fillMaxSize().background(palette.page)) {
                         Box(Modifier.padding(start = Dimens.screenPadding, end = Dimens.screenPadding, top = Dimens.screenPadding)) {
                             Top()
                         }
                         if (place == null) return@Column
                         val tabs = listOf(HomeCard.TODAY) + settings.cardOrder.filter { it in tabCards }
                         val current = tabs.firstOrNull { it.name == selectedTab } ?: HomeCard.TODAY
-                        PrimaryTabRow(selectedTabIndex = tabs.indexOf(current), containerColor = palette.page) {
+                        PrimaryTabRow(
+                            selectedTabIndex = tabs.indexOf(current),
+                            containerColor = palette.page,
+                        ) {
                             tabs.forEach { card ->
                                 Tab(
                                     selected = card == current,
@@ -732,12 +738,24 @@ private fun HomeContent(
                                 )
                             }
                         }
+                        Box(Modifier.weight(1f).fillMaxWidth()) {
                         cardState.SaveableStateProvider(current.name) {
                             if (current == HomeCard.RADAR) {
-                                RadarPane(place, settings.radarMiles, placeIndex, Modifier.weight(1f).fillMaxWidth())
+                                ForecastCard(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .padding(Dimens.screenPadding),
+                                ) {
+                                    RadarPane(
+                                        place,
+                                        settings.radarMiles,
+                                        placeIndex,
+                                        Modifier.weight(1f).fillMaxWidth(),
+                                    )
+                                }
                                 return@SaveableStateProvider
                             }
-                            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                            BoxWithConstraints(Modifier.fillMaxSize()) {
                                 val plotHeight = when {
                                     !vertical || current == HomeCard.TODAY -> Dimens.tabGraphHeight
                                     current == HomeCard.HOURLY -> maxHeight * AppConfig.VERTICAL_HOURLY_PLOT_FRACTION
@@ -752,6 +770,7 @@ private fun HomeContent(
                                     cards?.Card(current, showTitle = false, plotHeight = plotHeight, vertical = vertical)
                                 }
                             }
+                        }
                         }
                     }
                 }
@@ -847,6 +866,37 @@ private fun Header(
     }
 }
 
+@Composable
+private fun rememberViewReset(): Int {
+    val context = LocalContext.current
+    var generation by rememberSaveable { mutableIntStateOf(0) }
+    var pending by rememberSaveable { mutableStateOf(false) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        if (pending && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            pending = false
+            generation += 1
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    if ((context as? Activity)?.isChangingConfigurations != true) pending = true
+                }
+                Lifecycle.Event.ON_START -> {
+                    if (pending) {
+                        pending = false
+                        generation += 1
+                    }
+                }
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    return generation
+}
+
 private class ForecastCards(
     private val place: Place,
     private val snapshot: WeatherSnapshot,
@@ -855,6 +905,7 @@ private class ForecastCards(
     private val settings: HomeSettings,
     private val now: Instant,
     private val zone: ZoneId,
+    private val viewReset: Int,
 ) {
     @Composable
     fun Card(card: HomeCard, showTitle: Boolean, plotHeight: Dp, vertical: Boolean) {
@@ -883,6 +934,7 @@ private class ForecastCards(
                 showTitle = showTitle,
                 plotHeight = plotHeight,
                 vertical = vertical,
+                viewReset = viewReset,
             )
             HomeCard.EXTENDED -> ExtendedCard(
                 dayNight = snapshot.dayNight,
@@ -897,6 +949,7 @@ private class ForecastCards(
                 showTitle = showTitle,
                 plotHeight = plotHeight,
                 vertical = vertical,
+                viewReset = viewReset,
             )
             HomeCard.RADAR -> Unit
         }

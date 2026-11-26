@@ -40,5 +40,9 @@ object Dimens {
     val radarCountyLine = 0.5.dp
     val radarLabelGap = 4.dp
     val hourCorner = 8.dp
+    val widgetIcon = 48.dp
+    val widgetCurrentIcon = 56.dp
+    val widgetHourIcon = 32.dp
+    val widgetSideBySide = 280.dp
     val dayCorner = 12.dp
 }

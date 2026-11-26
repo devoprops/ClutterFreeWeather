@@ -10,8 +10,10 @@ object AppConfig {
     const val TODAY_GRAPH_LEAD_HOURS = 1L
     const val TODAY_AXIS_STEP_HOURS = 3
     const val EXTENDED_FORECAST_URL =
-        "https://pub-ca27a48323be4825bc625ad315ff6666.r2.dev/extended.json"
+        "https://weather.devocosm.com/extended.json"
     const val LAUNCH_REFRESH_MINUTES = 15L
+    const val WIDGET_REFRESH_MINUTES = 30L
+    const val WIDGET_HOUR_COUNT = 2
     const val OPEN_REFRESH_MINUTES = 30L
     const val FAST_REFRESH_MINUTES = 10L
     const val PLACE_SUGGESTIONS = 8
@@ -40,11 +42,6 @@ object AppConfig {
     const val PAST_OVERLAY_ALPHA = 0.38f
     const val ICON_DARKEN_ALPHA = 0.18f
     const val HOUR_PANEL_ALPHA = 0.07f
-    const val PAGE_TINT = 0.08f
-    const val CARD_TINT = 0.14f
-    const val SUBCARD_TINT = 0.24f
-    const val BAND_TINT = 0.34f
-    const val NIGHT_THEME_SHADE = 0.35f
     const val GRIDLINE_ALPHA = 0.22f
     const val GRIDLINE_PERCENT = 50.0
     const val TIP_BACKGROUND_ALPHA = 0.85f
@@ -67,6 +64,7 @@ object AppConfig {
     const val RADAR_TILE_REQUESTS = 4
     const val RADAR_LABEL_HALO_PX = 4f
     const val RADAR_ALPHA = 0.75f
+    const val RADAR_TAB_ALPHA = 0.92f
     const val RADAR_STATE_ALPHA = 0.7f
     const val RADAR_COUNTY_ALPHA = 0.25f
     val RADAR_MILES_CHOICES = listOf(25, 50, 100, 200)
