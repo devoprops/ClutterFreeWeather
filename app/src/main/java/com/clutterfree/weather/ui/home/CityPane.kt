@@ -121,8 +121,7 @@ fun CityPane(
                 Text(text = suggestion.label, style = MaterialTheme.typography.bodyLarge)
             }
         }
-        val nearestIsSaved = nearest != null && saved.any { it.displayName == nearest.label }
-        if (nearest != null && !nearestIsSaved) {
+        if (nearest != null && current?.displayName != nearest.label) {
             val nearestTitle = if (stationCode.isNullOrBlank()) {
                 nearest.label
             } else {

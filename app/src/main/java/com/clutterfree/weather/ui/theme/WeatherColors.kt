@@ -25,6 +25,9 @@ object WeatherColors {
     val crimson = ThemeColor(Color(0xFFC62828), Color(0xFFEF9A9A))
     val maroon = ThemeColor(Color(0xFF8E0000), Color(0xFFFFCDD2))
 
+    val widgetTemperature = Color(0xFF1A2330)
+    val widgetTemperatureEdge = Color(0xFFF7FBFF)
+
     val sun = Color(0xFFF5C542)
     val cloud = Color(0xFFD0D9E0)
     val cloudEdge = Color(0xFF607484)

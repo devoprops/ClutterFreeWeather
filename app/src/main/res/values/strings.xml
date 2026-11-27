@@ -103,6 +103,11 @@
     <string name="orientation_horizontal">Always horizontal</string>
     <string name="orientation_vertical">Always vertical</string>
     <string name="settings_preview">Preview</string>
+    <string name="settings_about">About</string>
+    <string name="about_body">Simple, Ad-free weather and radar. Devocosm 2026.Contact: devopropdev@gmail.com. </string>
+    <string name="settings_credits">Credits</string>
+    <string name="credits_body">Forecasts and alerts from the National Weather Service.\nRadar from the Iowa Environmental Mesonet.\nState and county lines from the US Census Bureau, via us-atlas.\nCity names from the US Census Bureau.</string>
+    <string name="privacy_policy">Privacy policy</string>
     <string name="reset_defaults">Reset to defaults</string>
     <string name="reset_title">Reset settings?</string>
     <string name="reset_message">Units, tab order, graphs, details, layout, and the closer-city suggestion go back to their defaults. Saved cities stay.</string>

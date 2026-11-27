@@ -73,7 +73,9 @@ import com.clutterfree.weather.ui.theme.Dimens
 import com.clutterfree.weather.ui.theme.LocalCardPalette
 import com.clutterfree.weather.ui.theme.cardPalette
 import com.clutterfree.weather.ui.radar.RadarPane
+import com.clutterfree.weather.widget.WidgetRefresh
 import com.clutterfree.weather.widget.updateWeatherWidgets
+import com.clutterfree.weather.widget.widgetsPlaced
 import com.clutterfree.weather.weather.AppConfig
 import com.clutterfree.weather.weather.ChartOrientation
 import com.clutterfree.weather.weather.DisplayUnits
@@ -133,6 +135,7 @@ fun HomeScreen(repository: WeatherRepository) {
     val context = LocalContext.current
     val coarse = remember(context) { CoarseLocation(context) }
     var device by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    var pendingNearest by remember { mutableStateOf(false) }
     val locationDenied = stringResource(R.string.device_location_denied)
     val locationUnavailable = stringResource(R.string.device_location_unavailable)
     val suggestions = remember(query, placeIndex) { placeIndex?.suggest(query).orEmpty() }
@@ -170,6 +173,7 @@ fun HomeScreen(repository: WeatherRepository) {
             }
             LoadResult.NoPlace -> snapshot = null
         }
+        updateWeatherWidgets(context)
     }
 
     fun selectPlace(selected: UsPlace) {
@@ -213,6 +217,16 @@ fun HomeScreen(repository: WeatherRepository) {
         }
     }
 
+    fun chooseNearest(fix: Pair<Double, Double>) {
+        val index = placeIndex
+        if (index == null) {
+            pendingNearest = true
+            return
+        }
+        val nearest = index.nearest(fix.first, fix.second)
+        if (nearest != null) selectPlace(nearest) else status = locationUnavailable
+    }
+
     fun useFix(selectNearest: Boolean) {
         if (busy) return
         val ticket = generation.get()
@@ -222,16 +236,20 @@ fun HomeScreen(repository: WeatherRepository) {
             device = fix
             if (!selectNearest) return@launch
             if (fix == null) {
+                pendingNearest = false
                 status = locationUnavailable
                 return@launch
             }
-            val nearest = placeIndex?.nearest(fix.first, fix.second)
-            if (ticket != generation.get()) return@launch
-            when {
-                nearest != null -> selectPlace(nearest)
-                placeIndex != null -> status = locationUnavailable
-            }
+            chooseNearest(fix)
         }
+    }
+
+    LaunchedEffect(placeIndex, device, pendingNearest) {
+        if (!pendingNearest) return@LaunchedEffect
+        val fix = device ?: return@LaunchedEffect
+        if (placeIndex == null) return@LaunchedEffect
+        pendingNearest = false
+        chooseNearest(fix)
     }
 
     val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -300,6 +318,7 @@ fun HomeScreen(repository: WeatherRepository) {
         settings = stored.settings
         if (stored.place == null) {
             showCities = true
+            if (widgetsPlaced(context)) WidgetRefresh.startSeek(context)
             return@LaunchedEffect
         }
         refreshing = true
@@ -404,6 +423,10 @@ fun HomeScreen(repository: WeatherRepository) {
     val widgetContext = LocalContext.current
     LaunchedEffect(place?.displayName, snapshot?.fetchedAt) {
         updateWeatherWidgets(widgetContext)
+        if (place != null) {
+            WidgetRefresh.cancelSeek(widgetContext)
+            if (snapshot == null) WidgetRefresh.runNow(widgetContext)
+        }
     }
 
     val currentSnapshot = rememberUpdatedState(snapshot)
@@ -418,11 +441,15 @@ fun HomeScreen(repository: WeatherRepository) {
                 opened = true
                 return@LifecycleEventObserver
             }
+            updateWeatherWidgets(widgetContext)
+            if (currentPlace.value == null) {
+                if (widgetsPlaced(widgetContext)) WidgetRefresh.startSeek(widgetContext)
+                return@LifecycleEventObserver
+            }
             ensureExtended()
-            val fetched = currentSnapshot.value?.fetchedAt ?: return@LifecycleEventObserver
-            if (currentPlace.value == null) return@LifecycleEventObserver
-            val age = Duration.between(fetched, Instant.now())
-            if (age.isNegative || age >= Duration.ofMinutes(AppConfig.LAUNCH_REFRESH_MINUTES)) refresh()
+            val fetched = currentSnapshot.value?.fetchedAt
+            val age = fetched?.let { Duration.between(it, Instant.now()) }
+            if (age == null || age.isNegative || age >= Duration.ofMinutes(AppConfig.LAUNCH_REFRESH_MINUTES)) refresh()
         }
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
@@ -464,6 +491,7 @@ fun HomeScreen(repository: WeatherRepository) {
 
     HomeContent(
         place = place,
+        device = device,
         snapshot = snapshot,
         extendedDays = extendedDays,
         units = units,
@@ -505,7 +533,11 @@ fun HomeScreen(repository: WeatherRepository) {
             }
         },
         closer = closer,
-        onUpdateClosest = { closer?.let(::selectPlace) },
+        suggestNearest = place == null && nearestPlace != null,
+        onUpdateClosest = {
+            val target = closer ?: nearestPlace?.takeIf { place == null }
+            target?.let(::selectPlace)
+        },
         onReset = {
             settings = HomeSettings()
             units = DisplayUnits()
@@ -568,6 +600,7 @@ fun HomeScreen(repository: WeatherRepository) {
 @Composable
 private fun HomeContent(
     place: Place?,
+    device: Pair<Double, Double>? = null,
     snapshot: WeatherSnapshot?,
     extendedDays: List<ExtendedDay> = emptyList(),
     units: DisplayUnits,
@@ -589,6 +622,7 @@ private fun HomeContent(
     onUnits: (DisplayUnits) -> Unit,
         onReset: () -> Unit,
         closer: UsPlace? = null,
+        suggestNearest: Boolean = false,
         onUpdateClosest: () -> Unit = {},
         showCities: Boolean,
     onOpenCities: () -> Unit,
@@ -623,6 +657,7 @@ private fun HomeContent(
             }
             Header(
                 place = place,
+                device = device,
                 observation = snapshot?.observation,
                 zone = zone,
                 units = units,
@@ -631,7 +666,7 @@ private fun HomeContent(
                 refreshing = refreshing,
                 onOpenSettings = onOpenSettings,
                 closer = closer != null,
-                suggest = settings.suggestClosest && closer != null,
+                suggest = settings.suggestClosest && (closer != null || suggestNearest),
                 onUpdateClosest = onUpdateClosest,
             )
             status?.let {
@@ -782,6 +817,7 @@ private fun HomeContent(
 @Composable
 private fun Header(
     place: Place?,
+    device: Pair<Double, Double>?,
     observation: Observation?,
     zone: ZoneId,
     units: DisplayUnits,
@@ -838,8 +874,10 @@ private fun Header(
         }
         val stationLatitude = observation?.stationLatitude
         val stationLongitude = observation?.stationLongitude
-        val distance = if (place != null && stationLatitude != null && stationLongitude != null) {
-            UnitFormatter(units).distance(milesBetween(place.latitude, place.longitude, stationLatitude, stationLongitude))
+        val distance = if (device != null && stationLatitude != null && stationLongitude != null) {
+            UnitFormatter(units).distance(
+                milesBetween(device.first, device.second, stationLatitude, stationLongitude),
+            )
         } else {
             null
         }

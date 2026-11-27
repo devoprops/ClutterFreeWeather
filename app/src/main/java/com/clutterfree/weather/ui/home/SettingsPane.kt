@@ -29,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -83,6 +84,19 @@ fun SettingsPane(
             Text(stringResource(R.string.back))
         }
         Text(text = stringResource(R.string.settings), style = MaterialTheme.typography.titleLarge)
+
+        Section(R.string.settings_about)
+        Text(
+            text = stringResource(R.string.about_body),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        val links = LocalUriHandler.current
+        TextButton(
+            onClick = { links.openUri(AppConfig.PRIVACY_URL) },
+            modifier = Modifier.heightIn(min = Dimens.touchTarget),
+        ) {
+            Text(stringResource(R.string.privacy_policy))
+        }
 
         if (preview != null) {
             Section(R.string.settings_preview)
@@ -202,6 +216,16 @@ fun SettingsPane(
                 }
             }
         }
+
+        Text(
+            text = stringResource(R.string.settings_credits),
+            modifier = Modifier.padding(top = Dimens.sectionGap),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = stringResource(R.string.credits_body),
+            style = MaterialTheme.typography.bodyLarge,
+        )
 
         HorizontalDivider(Modifier.padding(top = Dimens.sectionGap))
         TextButton(

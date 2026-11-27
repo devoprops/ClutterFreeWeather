@@ -103,6 +103,11 @@
     <string name="orientation_horizontal">Siempre horizontal</string>
     <string name="orientation_vertical">Siempre vertical</string>
     <string name="settings_preview">Vista previa</string>
+    <string name="settings_about">Acerca de</string>
+    <string name="about_body">Tiempo y radar simples, sin anuncios. Devocosm es el desarrollador.</string>
+    <string name="settings_credits">Créditos</string>
+    <string name="credits_body">Pronósticos y alertas del Servicio Meteorológico Nacional.\nRadar de Iowa Environmental Mesonet.\nLímites estatales y de condados de la Oficina del Censo de EE. UU., a través de us-atlas.\nNombres de ciudades de la Oficina del Censo de EE. UU.</string>
+    <string name="privacy_policy">Política de privacidad</string>
     <string name="reset_defaults">Restablecer valores</string>
     <string name="reset_title">¿Restablecer los ajustes?</string>
     <string name="reset_message">Las unidades, el orden de las pestañas, las gráficas, los detalles, el diseño y la sugerencia de ciudad más cercana vuelven a sus valores. Las ciudades guardadas se quedan.</string>

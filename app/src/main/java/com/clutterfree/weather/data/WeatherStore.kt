@@ -65,6 +65,13 @@ class WeatherStore(private val directory: File) {
         write(File(directory, SNAPSHOT_FILE), snapshotJson(snapshot))
     }
 
+    /** Keeps a forecast that finished for an older city from replacing the city just saved. */
+    fun writeSnapshotFor(displayName: String, snapshot: WeatherSnapshot): Boolean = synchronized(lock) {
+        if (readPlaceFile().place?.displayName != displayName) return false
+        write(File(directory, SNAPSHOT_FILE), snapshotJson(snapshot))
+        true
+    }
+
     fun clearSnapshot() = synchronized(lock) {
         File(directory, SNAPSHOT_FILE).delete()
     }

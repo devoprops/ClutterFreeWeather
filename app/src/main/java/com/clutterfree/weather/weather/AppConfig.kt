@@ -11,8 +11,11 @@ object AppConfig {
     const val TODAY_AXIS_STEP_HOURS = 3
     const val EXTENDED_FORECAST_URL =
         "https://weather.devocosm.com/extended.json"
+    const val PRIVACY_URL = "https://weather.devocosm.com/privacy.html"
     const val LAUNCH_REFRESH_MINUTES = 15L
     const val WIDGET_REFRESH_MINUTES = 30L
+    const val WIDGET_SEEK_ATTEMPTS = 10
+    const val WIDGET_SEEK_SECONDS = 30L
     const val WIDGET_HOUR_COUNT = 2
     const val OPEN_REFRESH_MINUTES = 30L
     const val FAST_REFRESH_MINUTES = 10L

@@ -1,10 +1,23 @@
 package com.clutterfree.weather.widget
 
 import android.appwidget.AppWidgetManager
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.util.TypedValue
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
@@ -12,18 +25,21 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
+import androidx.glance.currentState
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
+import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
-import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxHeight
@@ -36,12 +52,16 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import androidx.glance.state.GlanceStateDefinition
+import androidx.glance.state.PreferencesGlanceStateDefinition
+import androidx.glance.unit.ColorProvider
 import com.devoprop.clutterfreeweather.R
 import com.clutterfree.weather.MainActivity
 import com.clutterfree.weather.data.WeatherStore
 import com.clutterfree.weather.ui.DateFormats
 import com.clutterfree.weather.ui.conditionString
 import com.clutterfree.weather.ui.theme.Dimens
+import com.clutterfree.weather.ui.theme.WeatherColors
 import com.clutterfree.weather.weather.DisplayUnits
 import com.clutterfree.weather.weather.Measures
 import com.clutterfree.weather.weather.UnitFormatter
@@ -51,18 +71,32 @@ import com.clutterfree.weather.weather.isNight
 import com.clutterfree.weather.weather.parseIconUrl
 import com.clutterfree.weather.weather.widgetModel
 import com.clutterfree.weather.weather.withDaylight
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.time.Instant
+
+private val widgetReloadKey = longPreferencesKey("widget_reload")
+
+private object WidgetReload {
+    val generation = MutableStateFlow(0)
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    fun poke() {
+        generation.update { it + 1 }
+    }
+}
 
 class WeatherWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
+    override val stateDefinition: GlanceStateDefinition<*> = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val state = withContext(Dispatchers.IO) { readWidget(context) }
         provideContent {
             GlanceTheme {
-                WidgetFace(state)
+                WidgetFace(currentFace())
             }
         }
     }
@@ -93,12 +127,12 @@ class WeatherWidgetReceiver : GlanceAppWidgetReceiver() {
 
 class CurrentWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
+    override val stateDefinition: GlanceStateDefinition<*> = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val state = withContext(Dispatchers.IO) { readWidget(context) }
         provideContent {
             GlanceTheme {
-                CurrentFace(state)
+                CurrentFace(currentFace())
             }
         }
     }
@@ -127,22 +161,67 @@ class CurrentWidgetReceiver : GlanceAppWidgetReceiver() {
     }
 }
 
-suspend fun updateWeatherWidgets(context: Context) {
-    WeatherWidget().updateAll(context)
-    CurrentWidget().updateAll(context)
+fun updateWeatherWidgets(context: Context) {
+    WidgetReload.poke()
+    val appContext = context.applicationContext
+    WidgetReload.scope.launch {
+        listOf(WeatherWidget() to WeatherWidget::class.java, CurrentWidget() to CurrentWidget::class.java)
+            .forEach { (widget, type) ->
+                GlanceAppWidgetManager(appContext).getGlanceIds(type).forEach { id ->
+                    updateAppWidgetState(appContext, id) { prefs ->
+                        prefs[widgetReloadKey] = System.nanoTime()
+                    }
+                    widget.update(appContext, id)
+                }
+            }
+    }
+    val manager = AppWidgetManager.getInstance(appContext)
+    listOf(WeatherWidgetReceiver::class.java, CurrentWidgetReceiver::class.java).forEach { type ->
+        val component = ComponentName(context, type)
+        val ids = manager.getAppWidgetIds(component)
+        if (ids.isEmpty()) return@forEach
+        context.sendBroadcast(
+            Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
+                this.component = component
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+            },
+        )
+    }
+}
+
+fun widgetsPlaced(context: Context): Boolean {
+    val manager = AppWidgetManager.getInstance(context)
+    return listOf(WeatherWidgetReceiver::class.java, CurrentWidgetReceiver::class.java).any { type ->
+        manager.getAppWidgetIds(ComponentName(context, type)).isNotEmpty()
+    }
 }
 
 private fun widgetPlaced(context: Context) {
     WidgetRefresh.schedule(context)
     WidgetRefresh.runNow(context)
+    WidgetRefresh.startSeek(context)
 }
 
 private fun widgetRemoved(context: Context) {
-    val manager = AppWidgetManager.getInstance(context)
-    val placed = listOf(WeatherWidgetReceiver::class.java, CurrentWidgetReceiver::class.java).any { type ->
-        manager.getAppWidgetIds(ComponentName(context, type)).isNotEmpty()
+    if (!widgetsPlaced(context)) WidgetRefresh.cancel(context)
+}
+
+class WidgetBootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        if (!widgetsPlaced(context)) return
+        WidgetRefresh.schedule(context)
+        WidgetRefresh.runNow(context)
+        WidgetRefresh.startSeek(context)
     }
-    if (!placed) WidgetRefresh.cancel(context)
+}
+
+@Composable
+private fun currentFace(): WidgetFaceState {
+    val reload by WidgetReload.generation.collectAsState()
+    val stamped = currentState(widgetReloadKey)
+    val context = LocalContext.current
+    return remember(reload, stamped) { readWidget(context) }
 }
 
 private data class WidgetFaceState(
@@ -166,7 +245,7 @@ private fun WidgetFace(state: WidgetFaceState) {
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(GlanceTheme.colors.widgetBackground)
+            .background(ColorProvider(R.color.widget_background))
             .cornerRadius(Dimens.dayCorner)
             .clickable(actionStartActivity<MainActivity>())
             .padding(Dimens.cardPadding),
@@ -177,7 +256,7 @@ private fun WidgetFace(state: WidgetFaceState) {
                 GlanceModifier.fillMaxSize(),
                 verticalAlignment = Alignment.Top,
             ) {
-                CurrentHeadline(model, state.units, GlanceModifier.defaultWeight())
+                CurrentHeadline(model, state.units, GlanceModifier.defaultWeight().fillMaxHeight())
                 Spacer(GlanceModifier.width(Dimens.cardGap))
                 Column(GlanceModifier.defaultWeight().fillMaxHeight()) {
                     HourRow(model, state.units, GlanceModifier.fillMaxWidth())
@@ -207,7 +286,7 @@ private fun CurrentFace(state: WidgetFaceState) {
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(GlanceTheme.colors.widgetBackground)
+            .background(ColorProvider(R.color.widget_background))
             .cornerRadius(Dimens.dayCorner)
             .clickable(actionStartActivity<MainActivity>())
             .padding(Dimens.cardPadding),
@@ -249,22 +328,88 @@ private fun CurrentHeadline(model: WidgetModel, units: DisplayUnits, modifier: G
             )
         }
         Spacer(GlanceModifier.height(Dimens.tightGap))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            GlanceModifier.fillMaxWidth().defaultWeight(),
+            contentAlignment = Alignment.Center,
+        ) {
+            val context = LocalContext.current
             if (icon != 0) {
-                Image(
-                    provider = ImageProvider(icon),
-                    contentDescription = condition,
-                    modifier = GlanceModifier.size(Dimens.widgetCurrentIcon),
+                Box(GlanceModifier.size(heroIconSide())) {
+                    Image(
+                        provider = ImageProvider(icon),
+                        contentDescription = condition,
+                        modifier = GlanceModifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit,
+                    )
+                    Box(
+                        GlanceModifier.fillMaxSize().padding(Dimens.tightGap),
+                        contentAlignment = Alignment.BottomEnd,
+                    ) {
+                        Image(
+                            provider = ImageProvider(temperatureImage(context, temperature)),
+                            contentDescription = temperature,
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = temperature,
+                    maxLines = 1,
+                    style = TextStyle(
+                        color = ColorProvider(WeatherColors.widgetTemperature),
+                        fontSize = Dimens.widgetTemperatureText,
+                        fontWeight = FontWeight.Bold,
+                    ),
                 )
-                Spacer(GlanceModifier.width(Dimens.cardGap))
             }
-            Text(
-                text = temperature,
-                maxLines = 1,
-                style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 28.sp, fontWeight = FontWeight.Bold),
-            )
         }
     }
+}
+
+@Composable
+private fun heroIconSide(): Dp {
+    val size = LocalSize.current
+    val column = (size.width - Dimens.cardPadding * 2 - Dimens.cardGap) / 2
+    val belowHeadline = size.height - Dimens.cardPadding * 2 - Dimens.widgetHeadline
+    return minOf(column, belowHeadline).coerceAtLeast(Dimens.widgetCurrentIcon)
+}
+
+private fun temperatureImage(context: Context, text: String): Bitmap {
+    val metrics = context.resources.displayMetrics
+    val textSize = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_SP,
+        Dimens.widgetTemperatureText.value,
+        metrics,
+    )
+    val edge = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP,
+        Dimens.widgetTemperatureEdge.value,
+        metrics,
+    )
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.textSize = textSize
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        strokeJoin = Paint.Join.ROUND
+        strokeCap = Paint.Cap.ROUND
+    }
+    val width = paint.measureText(text)
+    val pad = edge * 2
+    val bitmap = Bitmap.createBitmap(
+        (width + pad * 2).toInt().coerceAtLeast(1),
+        (textSize + pad * 2).toInt().coerceAtLeast(1),
+        Bitmap.Config.ARGB_8888,
+    )
+    val canvas = Canvas(bitmap)
+    val x = pad
+    val y = textSize + pad - paint.descent()
+    paint.style = Paint.Style.STROKE
+    paint.strokeWidth = edge * 2
+    paint.color = WeatherColors.widgetTemperatureEdge.toArgb()
+    canvas.drawText(text, x, y, paint)
+    paint.style = Paint.Style.FILL
+    paint.color = WeatherColors.widgetTemperature.toArgb()
+    canvas.drawText(text, x, y, paint)
+    return bitmap
 }
 
 @Composable
@@ -288,7 +433,7 @@ private fun DetailPane(
     val summary = listOfNotNull(condition, range).joinToString("  ")
     Column(
         modifier
-            .background(GlanceTheme.colors.surface)
+            .background(ColorProvider(R.color.widget_pane))
             .cornerRadius(Dimens.hourCorner)
             .padding(Dimens.hourPanelPadding),
         verticalAlignment = Alignment.CenterVertically,
@@ -304,7 +449,7 @@ private fun DetailPane(
 }
 
 @Composable
-private fun line(text: String, color: androidx.glance.unit.ColorProvider, maxLines: Int = 1) {
+private fun line(text: String, color: ColorProvider, maxLines: Int = 1) {
     Text(
         text = text,
         maxLines = maxLines,
@@ -346,7 +491,11 @@ private fun CurrentBlock(model: WidgetModel, units: DisplayUnits, modifier: Glan
             Text(
                 text = temperature,
                 maxLines = 1,
-                style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 28.sp, fontWeight = FontWeight.Bold),
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurface,
+                    fontSize = Dimens.widgetTemperatureText,
+                    fontWeight = FontWeight.Bold,
+                ),
             )
         }
         Spacer(GlanceModifier.height(Dimens.tightGap))

@@ -1,6 +1,7 @@
 package com.clutterfree.weather.ui.theme
 
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 object Dimens {
     val zero = 0.dp
@@ -42,6 +43,9 @@ object Dimens {
     val hourCorner = 8.dp
     val widgetIcon = 48.dp
     val widgetCurrentIcon = 56.dp
+    val widgetHeadline = 40.dp
+    val widgetTemperatureText = 28.sp
+    val widgetTemperatureEdge = 2.dp
     val widgetHourIcon = 32.dp
     val widgetSideBySide = 280.dp
     val dayCorner = 12.dp

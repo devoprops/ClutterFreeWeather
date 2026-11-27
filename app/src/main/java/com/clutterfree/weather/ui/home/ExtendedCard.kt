@@ -29,6 +29,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -38,6 +40,7 @@ import com.clutterfree.weather.ui.DateFormats
 import com.clutterfree.weather.ui.conditionLabel
 import androidx.compose.ui.unit.Dp
 import com.clutterfree.weather.ui.theme.Dimens
+import com.clutterfree.weather.ui.theme.WeatherColors
 import com.clutterfree.weather.ui.theme.scaledHeight
 import com.clutterfree.weather.ui.theme.scaledWidth
 import com.clutterfree.weather.weather.AppConfig
@@ -250,33 +253,57 @@ private fun DayBox(
             .border(if (pinned) Dimens.emphasisBorder else Dimens.hairline, border, shape)
             .clickable(onClick = onTap),
     ) {
-        WeatherIcon(
-            iconUrl = iconPeriod?.iconUrl,
-            at = iconPeriod?.start ?: day.date.atStartOfDay(zone).toInstant(),
-            latitude = latitude,
-            longitude = longitude,
-            zone = zone,
-            contentDescription = conditionLabel(iconPeriod?.iconUrl) ?: iconPeriod?.shortForecast,
-            modifier = Modifier.fillMaxSize().padding(Dimens.iconInset),
-        )
-        Text(
-            text = day.date.format(DateFormats.dayCard()),
-            modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = Dimens.iconInset),
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = temperature,
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Column(Modifier.fillMaxSize()) {
+            Text(
+                text = day.date.format(DateFormats.dayCard()),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Dimens.iconInset, vertical = Dimens.tightGap),
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                WeatherIcon(
+                    iconUrl = iconPeriod?.iconUrl,
+                    at = iconPeriod?.start ?: day.date.atStartOfDay(zone).toInstant(),
+                    latitude = latitude,
+                    longitude = longitude,
+                    zone = zone,
+                    contentDescription = conditionLabel(iconPeriod?.iconUrl) ?: iconPeriod?.shortForecast,
+                    modifier = Modifier.fillMaxSize().padding(Dimens.iconInset),
+                )
+                OutlinedTemperature(
+                    text = temperature,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(Dimens.tightGap),
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun OutlinedTemperature(text: String, modifier: Modifier) {
+    val style = MaterialTheme.typography.titleMedium
+    val stroke = with(LocalDensity.current) { Dimens.widgetTemperatureEdge.toPx() } * 2
+    Text(
+        text = text,
+        modifier = modifier,
+        style = style.copy(
+            color = WeatherColors.widgetTemperatureEdge,
+            drawStyle = Stroke(width = stroke, join = StrokeJoin.Round),
+        ),
+        maxLines = 1,
+        softWrap = false,
+    )
+    Text(
+        text = text,
+        modifier = modifier,
+        style = style.copy(color = WeatherColors.widgetTemperature),
+        maxLines = 1,
+        softWrap = false,
+    )
 }
 
 private fun extendedX(

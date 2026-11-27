@@ -89,7 +89,7 @@ class NwsWeatherRepository(
         val merged = snapshot.copy(
             hourly = mergeElapsedToday(previous?.hourly.orEmpty(), snapshot.hourly, zone, now()),
         )
-        store.writeSnapshot(merged)
+        if (!store.writeSnapshotFor(place.displayName, merged)) return RefreshResult.NoPlace
         return RefreshResult.Updated(merged)
     }
 
@@ -148,6 +148,7 @@ class NwsWeatherRepository(
         } catch (_: Exception) {
             return null
         }
+        if (store.readPlace()?.displayName != place.displayName) return null
         store.writePlace(resolved)
         return resolved
     }
